@@ -221,7 +221,7 @@ const deployProject = async (project, branch = "main") => {
         deployment.currentStep = "Publishing";
         await deployment.save();
         const outputPath = path.join(applicationPath, outputDirectory);
-        if (fs.existsSync(outputPath)) {
+        if (!fs.existsSync(outputPath)) {
             throw new Error(`Build completed but '${outputDirectory}' directory was not found`);
         }
 
