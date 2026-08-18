@@ -53,11 +53,14 @@ const GitHub = () => {
     }, [currentUser,fetchRepositories]);
 
     const connectInstallation = useCallback(async (installationId) => {
+        console.log("connectInstallation STARTED:", installationId);
         try {
             setConnecting(true);
             setError("");
             setSuccess("");
+            console.log("About to call /auth/github/connect");
             const response = await API.post("/auth/github/connect", {installationId});
+            console.log("GitHub connect response:", response.data);
             setConnected(true);
             fetchRepositories();
             setSuccess(response.data.message || "GitHub connected successfully.");
@@ -83,11 +86,18 @@ const GitHub = () => {
     useEffect(() => {
         const installationId = searchParams.get("installation_id");
         const setupAction = searchParams.get("setup_action");
+        console.log("GitHub installation effect:", {
+            installationId,
+            setupAction,
+            alreadyHandled: installationHandled.current
+        });
         if (!installationId || setupAction !== "install" || installationHandled.current) {
+            console.log("GitHub installation effect stopped");
             return;
         }
         installationHandled.current = true;
-        setSearchParams({}, {replace: true});
+        console.log("Calling connectInstallation:", installationId);
+        setSearchParams({}, { replace: true });
         connectInstallation(installationId);
     }, [connectInstallation, searchParams, setSearchParams]);
 
