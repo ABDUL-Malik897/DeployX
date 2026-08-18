@@ -1,0 +1,398 @@
+.back-link {
+    display: inline-block;
+    margin-bottom: 25px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.back-link:hover {
+    color: var(--text);
+}
+
+.project-details-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 25px;
+    margin-bottom: 35px;
+}
+
+.project-label {
+    margin-bottom: 8px;
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.project-details-header h1 {
+    margin-bottom: 10px;
+    color: var(--text);
+    font-size: 34px;
+}
+
+.repository-link {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    word-break: break-all;
+}
+
+.repository-link:hover {
+    color: var(--primary);
+}
+
+.deploy-button {
+    padding: 13px 22px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.deploy-button:hover:not(:disabled) {
+    background: var(--primary-hover);
+}
+
+.deploy-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.project-info-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-bottom: 45px;
+}
+
+.project-info-card {
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+.project-info-card span {
+    display: block;
+    margin-bottom: 10px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.project-info-card strong {
+    color: var(--text);
+    font-size: 14px;
+    word-break: break-word;
+}
+
+.deployments-section {
+    margin-top: 30px;
+}
+
+.deployments-section .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.deployments-section .section-header h2 {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 22px;
+}
+
+.deployments-section .section-header p {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.deployments-section .section-header span {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.empty-deployments {
+    padding: 55px 30px;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.empty-deployments > div {
+    margin-bottom: 15px;
+    font-size: 45px;
+}
+
+.empty-deployments h3 {
+    margin-bottom: 8px;
+    color: var(--text);
+}
+
+.empty-deployments p {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.deployment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.deployment-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+.deployment-card h3 {
+    margin-bottom: 6px;
+    color: var(--text);
+    text-transform: capitalize;
+    font-size: 15px;
+}
+
+.deployment-card p {
+    margin-bottom: 5px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.deployment-card span {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.deployment-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    white-space: nowrap;
+}
+
+.deployment-actions a {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.deployment-actions a:hover {
+    text-decoration: underline;
+}
+
+.project-message {
+    color: var(--muted);
+}
+
+.project-error {
+    margin-bottom: 20px;
+    padding: 12px 15px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-sm);
+    color: var(--danger);
+    font-size: 14px;
+}
+
+@media (max-width: 900px) {
+    .project-info-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 650px) {
+    .project-details-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .deploy-button {
+        width: 100%;
+    }
+    .project-info-grid {
+        grid-template-columns: 1fr;
+    }
+    .deployment-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .deployment-actions {
+        flex-wrap: wrap;
+    }
+}
+
+.environment-section {
+    margin-bottom: 45px;
+    padding: 25px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+.environment-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.environment-header h2 {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 21px;
+}
+
+.environment-header p {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.add-variable-button {
+    padding: 9px 14px;
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.add-variable-button:hover {
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.environment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.environment-row {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.environment-row input {
+    width: 100%;
+    padding: 11px 12px;
+    background: var(--background);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    outline: none;
+}
+
+.environment-row input:focus {
+    border-color: var(--primary);
+}
+
+.environment-value {
+    position: relative;
+    display: flex;
+}
+
+.environment-value input {
+    padding-right: 65px;
+}
+
+.environment-value button {
+    position: absolute;
+    right: 7px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 4px 7px;
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.environment-value button:hover {
+    color: var(--text);
+}
+
+.remove-variable-button {
+    padding: 10px 12px;
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.remove-variable-button:hover {
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.save-environment-button {
+    margin-top: 20px;
+    padding: 11px 18px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.save-environment-button:hover:not(:disabled) {
+    background: var(--primary-hover);
+}
+
+.save-environment-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.environment-error {
+    margin-top: 15px;
+    color: var(--danger);
+    font-size: 13px;
+}
+
+@media (max-width: 700px) {
+    .environment-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .environment-row {
+        grid-template-columns: 1fr;
+    }
+    .remove-variable-button {
+        width: 100%;
+    }
+    .add-variable-button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .project-details-header h1 {
+        font-size: 28px;
+    }
+    .environment-section {
+        padding: 18px;
+    }
+    .deployment-card {
+        padding: 16px;
+    }
+}

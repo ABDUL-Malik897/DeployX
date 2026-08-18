@@ -1,0 +1,79 @@
+.settings-page {
+    width: 100%;
+}
+
+.settings-header {
+    margin-bottom: 35px;
+}
+
+.settings-header h1 {
+    margin-bottom: 8px;
+    color: var(--text);
+    font-size: 32px;
+    letter-spacing: -0.5px;
+}
+
+.settings-header p {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.settings-layout {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 45px;
+}
+
+.settings-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-nav-link {
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 14px;
+    text-decoration: none;
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+}
+
+.settings-nav-link:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+}
+
+.settings-nav-link.active {
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--text);
+    font-weight: 600;
+}
+
+.settings-content {
+    min-width: 0;
+    max-width: 750px;
+}
+
+@media (max-width: 800px) {
+    .settings-layout {
+        grid-template-columns: 1fr;
+        gap: 25px;
+    }
+    .settings-sidebar {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 5px;
+    }
+    .settings-nav-link {
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 600px) {
+    .settings-header h1 {
+        font-size: 28px;
+    }
+}

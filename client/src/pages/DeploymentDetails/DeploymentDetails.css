@@ -1,0 +1,191 @@
+.deployment-details-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 25px;
+    margin-bottom: 35px;
+}
+
+.deployment-label {
+    margin-bottom: 8px;
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.deployment-details-header h1 {
+    margin-bottom: 8px;
+    color: var(--text);
+    font-size: 34px;
+}
+
+.deployment-project-name {
+    color: var(--muted);
+    font-size: 15px;
+}
+
+.deployment-info-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-bottom: 40px;
+}
+
+.deployment-info-card {
+    min-height: 100px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+.deployment-info-card > span {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.deployment-info-card strong {
+    color: var(--text);
+    font-size: 14px;
+    word-break: break-word;
+}
+
+.deployment-info-card a {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.deployment-info-card a:hover {
+    text-decoration: underline;
+}
+
+.logs-section {
+    margin-top: 30px;
+}
+
+.logs-header {
+    margin-bottom: 18px;
+}
+
+.logs-header h2 {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 22px;
+}
+
+.logs-header p {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.logs-container {
+    min-height: 450px;
+    max-height: 600px;
+    margin: 0;
+    padding: 22px;
+    background: #080b12;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    color: #d1d5db;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow: auto;
+}
+
+.deployment-message {
+    color: var(--muted);
+}
+
+.deployment-error {
+    margin-bottom: 20px;
+    padding: 12px 15px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-sm);
+    color: var(--danger);
+    font-size: 14px;
+}
+
+@media (max-width: 900px) {
+    .deployment-info-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 650px) {
+    .deployment-details-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .deployment-info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .deployment-details-header h1 {
+        font-size: 28px;
+    }
+    .logs-container {
+        min-height: 350px;
+        padding: 15px;
+        font-size: 12px;
+    }
+}
+
+.deployment-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.redeploy-button {
+    padding: 9px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #000000;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.redeploy-button:hover {
+    opacity: 0.85;
+}
+
+.redeploy-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.rollback-button {
+    padding: 9px 16px;
+    border: 1px solid #555;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.rollback-button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.rollback-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

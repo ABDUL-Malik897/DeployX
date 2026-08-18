@@ -1,0 +1,131 @@
+.recent-deployments {
+    margin-top: 35px;
+    padding: 25px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.recent-deployments-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.recent-deployments-header h2 {
+    margin-bottom: 5px;
+    color: var(--text);
+    font-size: 18px;
+}
+
+.recent-deployments-header p {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.recent-deployments-view-all {
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.recent-deployments-view-all:hover {
+    color: var(--primary-hover);
+}
+
+.recent-deployments-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.recent-deployment-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 17px 0;
+    border-top: 1px solid var(--border);
+}
+
+.recent-deployment-info {
+    min-width: 0;
+}
+
+.recent-deployment-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.recent-deployment-title strong {
+    color: var(--text);
+    font-size: 13px;
+}
+
+.recent-deployment-info p {
+    margin-top: 5px;
+    color: var(--text);
+    font-size: 12px;
+}
+
+.recent-deployment-info span {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.recent-deployment-link {
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.recent-deployment-link:hover {
+    color: var(--primary-hover);
+}
+
+.recent-deployments-loading {
+    padding: 30px 0;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.recent-deployments-empty {
+    padding: 35px 20px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+}
+
+.recent-deployments-empty > div {
+    margin-bottom: 10px;
+    font-size: 30px;
+}
+
+.recent-deployments-empty h3 {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 14px;
+}
+
+.recent-deployments-empty p {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+@media (max-width: 600px) {
+    .recent-deployments {
+        padding: 18px;
+    }
+    .recent-deployment-item {
+        align-items: flex-start;
+    }
+}

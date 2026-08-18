@@ -1,0 +1,97 @@
+.account-settings {
+    width: 100%;
+}
+
+.settings-section-header {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-section-header h2 {
+    margin-bottom: 6px;
+    color: var(--text);
+    font-size: 20px;
+}
+
+.settings-section-header p {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.account-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.account-avatar {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 5px;
+    background: var(--primary);
+    border-radius: 50%;
+    color: white;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.account-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.account-field label {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.account-field input {
+    width: 100%;
+    padding: 11px 13px;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    outline: none;
+}
+
+.account-field input:focus {
+    border-color: var(--primary);
+    box-shadow:0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.account-field input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.account-field small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.account-save-button {
+    align-self: flex-start;
+    padding: 10px 18px;
+    background: var(--primary);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.account-save-button:hover {
+    background: var(--primary-hover);
+}
+
+.account-success {
+    color: #22c55e;
+    font-size: 13px;
+}

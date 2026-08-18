@@ -1,0 +1,139 @@
+.signup-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    background: radial-gradient(circle at top, rgba(99, 102, 241, 0.12), transparent 45%), var(--background);
+}
+
+.signup-card {
+    width: 100%;
+    max-width: 430px;
+    padding: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+
+.signup-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.signup-logo {
+    display: inline-block;
+    margin-bottom: 30px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 26px;
+    font-weight: 800;
+}
+
+.signup-logo span {
+    color: var(--primary);
+}
+
+.signup-header h1 {
+    color: var(--text);
+    font-size: 30px;
+    margin-bottom: 8px;
+}
+
+.signup-header p {
+    color: var(--muted);
+    font-size: 15px;
+}
+
+.signup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.signup-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.signup-form label {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.signup-form input {
+    width: 100%;
+    padding: 13px 14px;
+    background: var(--background);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.signup-form input::placeholder {
+    color: #64748b;
+}
+
+.signup-form input:focus {
+    border-color: var(--primary);
+    box-shadow:0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.signup-button {
+    width: 100%;
+    padding: 13px 18px;
+    margin-top: 4px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+.signup-button:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.signup-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.signup-error {
+    margin: 0;
+    padding: 10px 12px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-sm);
+    color: var(--danger);
+    font-size: 14px;
+}
+
+.signup-footer {
+    margin-top: 25px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.signup-footer a {
+    margin-left: 5px;
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.signup-footer a:hover {
+    text-decoration: underline;
+}

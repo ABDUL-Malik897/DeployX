@@ -1,0 +1,121 @@
+.hero {
+    min-height: calc(100vh - 73px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 60px;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 30%,  rgba(99, 102, 241, 0.14), transparent 45%);
+}
+
+.hero-content {
+    width: 100%;
+    max-width: 900px;
+    text-align: center;
+}
+
+.hero-badge {
+    display: inline-block;
+    padding: 8px 14px;
+    margin-bottom: 25px;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 999px;
+    color: #a5b4fc;
+    font-size: 14px;
+}
+
+.hero h1 {
+    max-width: 850px;
+    margin: 0 auto;
+    color: var(--text);
+    font-size: clamp(48px, 7vw, 76px);
+    line-height: 1.05;
+    letter-spacing: -3px;
+    font-weight: 800;
+}
+
+.hero h1 span {
+    color: var(--primary);
+}
+
+.hero-content > p {
+    max-width: 680px;
+    margin: 28px auto 0;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1.7;
+}
+
+.hero-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 35px;
+}
+
+.hero-primary-button,
+.hero-secondary-button {
+    padding: 13px 22px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 600;
+    transition: 0.2s ease;
+}
+
+.hero-primary-button {
+    background: var(--primary);
+    color: white;
+}
+
+.hero-primary-button:hover {
+    background: var(--primary-hover);
+
+    transform: translateY(-2px);
+}
+
+.hero-secondary-button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+
+.hero-secondary-button:hover {
+    background: var(--surface-hover);
+    transform: translateY(-2px);
+}
+
+.hero-flow {
+    max-width: 650px;
+    margin: 70px auto 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flow-step {
+    min-width: 120px;
+}
+
+.flow-step span {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.flow-step p {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.flow-line {
+    width: 80px;
+    height: 1px;
+    margin: 0 10px;
+    background: var(--border);
+}

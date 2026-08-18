@@ -1,0 +1,88 @@
+.how-it-works {
+    padding: 110px 60px;
+    background: var(--surface);
+}
+
+.how-it-works-header {
+    max-width: 700px;
+    margin: 0 auto 70px;
+    text-align: center;
+}
+
+.how-it-works-label {
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+.how-it-works-header h2 {
+    margin-top: 14px;
+    color: var(--text);
+    font-size: clamp(32px, 5vw, 46px);
+    line-height: 1.15;
+    letter-spacing: -1.5px;
+}
+
+.how-it-works-header p {
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.7;
+}
+
+.steps-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+}
+
+.step {
+    position: relative;
+    text-align: center;
+    padding: 25px 15px;
+}
+
+.step-number {
+    margin-bottom: 20px;
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.step-icon {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 22px;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    font-size: 28px;
+}
+
+.step h3 {
+    margin-bottom: 10px;
+    color: var(--text);
+    font-size: 18px;
+}
+
+.step p {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.step-line {
+    position: absolute;
+    top: 61px;
+    left: calc(100% - 5px);
+    width: 30px;
+    height: 1px;
+    background: var(--border);
+}
