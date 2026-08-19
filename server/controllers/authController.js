@@ -451,7 +451,7 @@ const githubCallback = async (req, res) => {
 
         if (!code || !state) {
             return res.redirect(
-                "http://localhost:3001/login?error=github_auth_failed"
+                `${process.env.FRONTEND_URL}/login?error=github_auth_failed`
             );
         }
         const cookies = req.headers.cookie || "";
@@ -463,7 +463,7 @@ const githubCallback = async (req, res) => {
             );
         const savedState = stateCookie?.split("=")[1];
         if (!savedState || savedState !== state) {
-            return res.redirect("http://localhost:3001/login?error=github_state_invalid");
+            return res.redirect(`${process.env.FRONTEND_URL}/login?error=github_state_invalid`);
         }
 
         const tokenResponse = await fetch("https://github.com/login/oauth/access_token",  {
@@ -483,7 +483,7 @@ const githubCallback = async (req, res) => {
         const tokenData = await tokenResponse.json();
         if (!tokenData.access_token) {
             console.error("GitHub token error:", tokenData);
-            return res.redirect("http://localhost:3001/login?error=github_token_failed");
+            return res.redirect(`${process.env.FRONTEND_URL}/login?error=github_token_failed`);
         }
 
         const githubAccessToken = tokenData.access_token;
@@ -497,7 +497,7 @@ const githubCallback = async (req, res) => {
         );
         const githubUser = await githubUserResponse.json();
         if (!githubUser.id) {
-            return res.redirect("http://localhost:3001/login?error=github_user_failed");
+            return res.redirect(`${process.env.FRONTEND_URL}/login?error=github_user_failed`);
         }
 
         const emailResponse = await fetch("https://api.github.com/user/emails", {
@@ -511,7 +511,7 @@ const githubCallback = async (req, res) => {
         const emails = await emailResponse.json();
         const primaryEmail = Array.isArray(emails) ? emails.find(email => email.primary && email.verified) : null;
         if (!primaryEmail?.email) {
-            return res.redirect("http://localhost:3001/login?error=github_email_failed");
+            return res.redirect(`${process.env.FRONTEND_URL}/login?error=github_email_failed`);
         }
         const githubId = String(githubUser.id);
         const email = primaryEmail.email.toLowerCase();
@@ -543,7 +543,7 @@ const githubCallback = async (req, res) => {
             await user.save();
         }
         const token = createToken(user._id);
-        const frontendUrl = `http://localhost:3001/github/callback#token=${encodeURIComponent(token)}`;
+        const frontendUrl = `${process.env.FRONTEND_URL}/github/callback#token=${encodeURIComponent(token)}`;
         res.setHeader(
             "Set-Cookie",
             "github_oauth_state=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0"
@@ -551,7 +551,7 @@ const githubCallback = async (req, res) => {
         return res.redirect(frontendUrl);
     } catch (error) {
         console.error("GitHub OAuth error:", error);
-        return res.redirect("http://localhost:3001/login?error=github_auth_failed");
+        return res.redirect(`${process.env.FRONTEND_URL}/login?error=github_auth_failed`);
     }
 };
 
