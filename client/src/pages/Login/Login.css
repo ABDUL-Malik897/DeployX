@@ -176,3 +176,9 @@
     background: #222;
     border-color: #666;
 }
+
+.google-login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
