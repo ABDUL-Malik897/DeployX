@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import API from "../../../api/api";
 import useAuthContext from "../../../hooks/useAuthContext";
 import "./GitHub.css";
-// import LoadingState from "../../../components/LoadingState/LoadingState";
 import ErrorState from "../../../components/ErrorState/ErrorState";
 
 const GitHub = () => {
@@ -30,6 +29,7 @@ const GitHub = () => {
     const [selectedRootDirectory, setSelectedRootDirectory] = useState("");
     const [selectedBranch, setSelectedBranch] = useState("");
     const currentUser = user?.user || user;
+    const [searchQuery, setSearchQuery] = useState("");
 
     const fetchRepositories = useCallback(async () => {
         try {
@@ -278,6 +278,11 @@ const GitHub = () => {
         }
     }, [searchParams, setSearchParams, fetchRepositories, dispatch]);
 
+    const handleRefresh = async () => {
+        setSearchQuery("");
+        await fetchRepositories();
+    };
+
     return (
         <div className="github-settings">
             <div className="settings-section-header">
@@ -302,8 +307,7 @@ const GitHub = () => {
                             </p>
                             {currentUser?.githubUsername && (
                                 <span className="github-username">
-                                    @
-                                    {currentUser.githubUsername}
+                                    @{currentUser.githubUsername}
                                 </span>
                             )}
                         </>
@@ -330,7 +334,7 @@ const GitHub = () => {
             {connected && (
                 <div className="github-repositories">
                     <div className="github-repositories-header">
-                        <div>
+                        <div className="github-repositories-title">
                             <h3>
                                 Your Repositories
                             </h3>
@@ -338,20 +342,29 @@ const GitHub = () => {
                                 Repositories available to DeployX.
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={
-                                fetchRepositories
-                            }
-                            disabled={
-                                repositoriesLoading
-                            }
-                        >
-                            {repositoriesLoading
-                                ? "Refreshing..."
-                                : "Refresh"
-                            }
-                        </button>
+                        <div className="github-repositories-actions">
+                            <div className="github-search-wrapper">
+                                <input
+                                    type="text"
+                                    className="github-search-input"
+                                    placeholder="Search repositories..."
+                                    value={searchQuery}
+                                    onChange={(event) =>
+                                        setSearchQuery(event.target.value)
+                                    }
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleRefresh}
+                                disabled={repositoriesLoading}
+                            >
+                                {repositoriesLoading
+                                    ? "Refreshing..."
+                                    : "Refresh"
+                                }
+                            </button>
+                        </div>
                     </div>
                     {repositoriesLoading && (
                         <p className="github-repositories-status">
@@ -387,9 +400,7 @@ const GitHub = () => {
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={
-                                        closeRepository
-                                    }
+                                    onClick={closeRepository}
                                 >
                                     Close
                                 </button>
@@ -593,6 +604,22 @@ const GitHub = () => {
                                             repository.id !==
                                             selectedRepository?.id
                                     )
+                                    .filter((repository) => {
+                                        const query = searchQuery.trim().toLowerCase();
+
+                                        if (!query) {
+                                            return true;
+                                        }
+
+                                        return (
+                                            repository.name
+                                                ?.toLowerCase()
+                                                .includes(query) ||
+                                            repository.fullName
+                                                ?.toLowerCase()
+                                                .includes(query)
+                                        );
+                                    })
                                     .map(
                                         (repository) => (
                                             <button
@@ -628,7 +655,19 @@ const GitHub = () => {
                                         )
                                     )}
                             </div>
-                        )}
+                    )}
+                    {!repositoriesLoading && repositories.length > 0 &&  repositories
+                        .filter((repository) => repository.id !== selectedRepository?.id)
+                        .filter((repository) => {const query = searchQuery.trim().toLowerCase();
+                            if (!query) {
+                                return true;
+                            }
+                            return (repository.name?.toLowerCase().includes(query) || repository.fullName?.toLowerCase().includes(query));
+                        }).length === 0 && (
+                            <p className="github-repositories-status">
+                                No repositories match your search.
+                            </p>
+                    )}                    
                 </div>
             )}
             {success && (
