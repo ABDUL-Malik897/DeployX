@@ -1,7 +1,6 @@
 const { spawn } = require("child_process");
 
-const runCommand = (command, args, cwd, customEnv) => {
-
+const runCommand = (command, args, cwd, customEnv = {}, onLog) => {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
             cwd,
@@ -11,25 +10,49 @@ const runCommand = (command, args, cwd, customEnv) => {
                 ...customEnv
             }
         });
-        let logs = "";
+
+        let failed = false;
+
+        const handleOutput = (data, isError = false) => {
+            const output = data.toString();
+
+            if (onLog) {
+                onLog(output);
+            }
+
+            if (isError) {
+                console.error(output);
+            } else {
+                console.log(output);
+            }
+        };
+
         child.stdout.on("data", (data) => {
-            const output = data.toString();
-            logs += output;
-            console.log(output);
+            handleOutput(data, false);
         });
+
         child.stderr.on("data", (data) => {
-            const output = data.toString();
-            logs += output;
-            console.error(output);
+            handleOutput(data, true);
         });
+
         child.on("error", (error) => {
+            failed = true;
             reject(error);
         });
+
         child.on("close", (code) => {
+            if (failed) {
+                return;
+            }
+
             if (code === 0) {
-                resolve(logs);
+                resolve();
             } else {
-                reject(new Error(`Command failed with exit code ${code}\n${logs}`));
+                reject(
+                    new Error(
+                        `Command failed with exit code ${code}`
+                    )
+                );
             }
         });
     });

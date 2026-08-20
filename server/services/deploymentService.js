@@ -49,7 +49,8 @@ const deployProject = async (project, branch = "main") => {
 
     let deployment;
     const emitLog = (deployment, message) => {
-        deployment.logs += message;
+        const MAX_LOG_SIZE = 500000;
+        deployment.logs = (deployment.logs + message).slice(-MAX_LOG_SIZE);
         const deploymentData = {
             deploymentId: deployment._id.toString(),
             projectId: deployment.project.toString(),
