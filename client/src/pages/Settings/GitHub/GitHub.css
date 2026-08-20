@@ -412,3 +412,12 @@
         max-height: 400px;
     }
 }
+
+.root-directory-selector select {
+    max-width: 130px;
+    background: var(--background);
+    border: 2px solid var(--text);
+    color: var(--text);
+    border-radius: 6px;
+    margin: 0 20px;
+}

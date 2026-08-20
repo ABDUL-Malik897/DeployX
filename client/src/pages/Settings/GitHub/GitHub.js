@@ -485,7 +485,7 @@ const GitHub = () => {
                                     <div className="inspection-info">
                                         <div>
                                             <span>
-                                                Repository:- 
+                                                Repository:- &nbsp
                                             </span>
                                             <strong>
                                                 {selectedRepository.fullName}
@@ -493,7 +493,7 @@ const GitHub = () => {
                                         </div>
                                         <div>
                                             <span>
-                                                Branch:- 
+                                                Branch:- &nbsp
                                             </span>
                                             <strong>
                                                 {selectedBranch}
@@ -501,7 +501,7 @@ const GitHub = () => {
                                         </div>
                                         <div>
                                             <span>
-                                                Repository Type:- 
+                                                Repository Type:- &nbsp
                                             </span>
                                             <strong>
                                                 {inspection.repositoryType || "Unknown"}
