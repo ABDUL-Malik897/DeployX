@@ -1,38 +1,56 @@
 const path = require("path");
 const fs = require("fs");
+
 const Deployment = require("../models/Deployment");
 const Project = require("../models/Project");
 const runCommand = require("./commandRunner");
 const { getIO } = require("../socket");
 
-const ensureProjectSlug = async (project) => {
+const MAX_LOG_SIZE = 500000;
 
+const ensureProjectSlug = async (project) => {
     if (!project.slug) {
-        let slug = project.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        let slug = project.name
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+
         if (!slug) {
             slug = `project-${project._id}`;
         }
-        let existingProject = await Project.findOne({
+
+        const existingProject = await Project.findOne({
             slug,
             _id: {
                 $ne: project._id
             }
         });
+
         if (existingProject) {
-            slug = `${slug}-${project._id.toString().slice(-6)}`;
+            slug = `${slug}-${project._id
+                .toString()
+                .slice(-6)}`;
         }
+
         project.slug = slug;
     }
+
     return project;
 };
 
-const makeProductionDeployment = async (project, deployment) => {
-
+const makeProductionDeployment = async (
+    project,
+    deployment
+) => {
     await ensureProjectSlug(project);
 
     await Deployment.updateMany(
         {
-            project: project._id
+            project: project._id,
+            _id: {
+                $ne: deployment._id
+            }
         },
         {
             $set: {
@@ -40,50 +58,140 @@ const makeProductionDeployment = async (project, deployment) => {
             }
         }
     );
+
     deployment.isProduction = true;
     project.productionDeployment = deployment._id;
+
     await project.save();
 };
 
-const deployProject = async (project, branch = "main") => {
-
+const processDeployment = async (deploymentId) => {
     let deployment;
-    const emitLog = (deployment, message) => {
-        const MAX_LOG_SIZE = 500000;
-        deployment.logs = (deployment.logs + message).slice(-MAX_LOG_SIZE);
+
+    const emitLog = (message) => {
+        if (!deployment) {
+            return;
+        }
+
+        deployment.logs = (
+            (deployment.logs || "") +
+            message
+        ).slice(-MAX_LOG_SIZE);
+
         const deploymentData = {
-            deploymentId: deployment._id.toString(),
-            projectId: deployment.project.toString(),
+            deploymentId:
+                deployment._id.toString(),
+
+            projectId:
+                deployment.project.toString(),
+
             log: message,
-            currentStep: deployment.currentStep,
-            status: deployment.status,
-            url: deployment.url || null
+
+            currentStep:
+                deployment.currentStep,
+
+            status:
+                deployment.status,
+
+            url:
+                deployment.url || null
         };
 
-        getIO().to(deployment._id.toString()).emit("deployment-log", deploymentData);
-        getIO().to(`project:${deployment.project.toString()}`).emit("deployment-update",deploymentData);
+        const io = getIO();
+
+        if (!io) {
+            console.warn(
+                "Socket.IO is not initialized."
+            );
+            return;
+        }
+
+        io
+            .to(deployment._id.toString())
+            .emit(
+                "deployment-log",
+                deploymentData
+            );
+
+        io
+            .to(
+                `project:${deployment.project.toString()}`
+            )
+            .emit(
+                "deployment-update",
+                deploymentData
+            );
     };
 
     try {
-        deployment = await Deployment.create({
-            project: project._id,
-            repository: project.repository,
-            branch,
-            applicationDirectory: project.rootDirectory || "",
-            status: "queued",
-            currentStep: "Queued",
-            logs:`Deployment queued...\n` + `Branch: ${branch}\n`
-        });
+        // ----------------------------------------
+        // 1. Load existing queued deployment
+        // ----------------------------------------
 
-        getIO().to(`project:${project._id.toString()}`).emit("deployment-update", {
-            deploymentId: deployment._id.toString(),
-            projectId: project._id.toString(),
-            log: deployment.logs,
-            currentStep: deployment.currentStep,
-            status: deployment.status,
-            url: null
-            }
+        deployment =
+            await Deployment.findById(
+                deploymentId
+            );
+
+        if (!deployment) {
+            throw new Error(
+                "Deployment not found"
+            );
+        }
+
+        if (
+            deployment.status !== "queued" &&
+            deployment.status !== "building"
+        ) {
+            throw new Error(
+                `Deployment is not queued. Current status: ${deployment.status}`
+            );
+        }
+
+        // ----------------------------------------
+        // 2. Load project
+        // ----------------------------------------
+
+        const project =
+            await Project.findById(
+                deployment.project
+            );
+
+        if (!project) {
+            throw new Error(
+                "Project not found"
+            );
+        }
+
+        const branch =
+            deployment.branch || "main";
+
+        const applicationDirectory =
+            deployment.applicationDirectory ||
+            project.rootDirectory ||
+            "";
+
+        // ----------------------------------------
+        // 3. Mark deployment as building
+        // ----------------------------------------
+
+        deployment.status = "building";
+        deployment.currentStep =
+            "Cloning Repository";
+
+        emitLog(
+            "Starting deployment...\n"
         );
+
+        emitLog(
+            `Cloning branch '${branch}'...\n`
+        );
+
+        await deployment.save();
+
+        // ----------------------------------------
+        // 4. Create build directory
+        // ----------------------------------------
 
         const buildPath = path.join(
             __dirname,
@@ -92,15 +200,17 @@ const deployProject = async (project, branch = "main") => {
             deployment._id.toString()
         );
 
-        fs.mkdirSync(buildPath, {
-            recursive:true
-        });
+        fs.mkdirSync(
+            buildPath,
+            {
+                recursive: true
+            }
+        );
 
-        deployment.status = "building";
-        deployment.currentStep ="Cloning Repository";
-        emitLog(deployment, "Starting deployment...\n");
-        emitLog(deployment,`Cloning branch '${branch}'...\n`);
-        await deployment.save();
+        // ----------------------------------------
+        // 5. Clone repository
+        // ----------------------------------------
+
         await runCommand(
             "git",
             [
@@ -115,49 +225,166 @@ const deployProject = async (project, branch = "main") => {
             buildPath,
             {},
             (message) => {
-                emitLog(deployment, message);
+                emitLog(message);
             }
         );
-        emitLog(deployment, "\nRepository cloned.\n");
 
-        const applicationPath = path.resolve(buildPath, project.rootDirectory || "");
-        if (applicationPath !== buildPath && !applicationPath.startsWith(buildPath + path.sep)) {
-            throw new Error("Invalid application directory");
+        emitLog(
+            "\nRepository cloned.\n"
+        );
+
+        // ----------------------------------------
+        // 6. Resolve application directory
+        // ----------------------------------------
+
+        const applicationPath =
+            path.resolve(
+                buildPath,
+                applicationDirectory
+            );
+
+        const resolvedBuildPath =
+            path.resolve(buildPath);
+
+        if (
+            applicationPath !==
+                resolvedBuildPath &&
+            !applicationPath.startsWith(
+                resolvedBuildPath + path.sep
+            )
+        ) {
+            throw new Error(
+                "Invalid application directory"
+            );
         }
 
-        if (!fs.existsSync(applicationPath)) {
-            throw new Error(`Application directory '${project.rootDirectory}' not found`);
+        if (
+            !fs.existsSync(
+                applicationPath
+            )
+        ) {
+            throw new Error(
+                `Application directory '${applicationDirectory}' not found`
+            );
         }
 
-        deployment.currentStep = "Detecting Project";
-        // emitLog(deployment, cloneLogs);
-        // emitLog(deployment, "\nRepository cloned.\n");
-        emitLog(deployment, `Application directory: ${ project.rootDirectory || "." }\n`);
+        // ----------------------------------------
+        // 7. Detect project
+        // ----------------------------------------
+
+        deployment.currentStep =
+            "Detecting Project";
+
+        emitLog(
+            `Application directory: ${
+                applicationDirectory || "."
+            }\n`
+        );
+
         await deployment.save();
-        const packagePath = path.join(applicationPath, "package.json");
-        const hasPackageJson = fs.existsSync(packagePath);
+
+        const packagePath =
+            path.join(
+                applicationPath,
+                "package.json"
+            );
+
+        const hasPackageJson =
+            fs.existsSync(packagePath);
+
+        // ----------------------------------------
+        // 8. Static project
+        // ----------------------------------------
+
         if (!hasPackageJson) {
-            const indexPath = path.join(applicationPath, "index.html");
-            if (!fs.existsSync(indexPath)) {
-                throw new Error("No package.json or index.html found in application directory");
+            const indexPath =
+                path.join(
+                    applicationPath,
+                    "index.html"
+                );
+
+            if (
+                !fs.existsSync(indexPath)
+            ) {
+                throw new Error(
+                    "No package.json or index.html found in application directory"
+                );
             }
-            emitLog(deployment, "\nStatic HTML/CSS/JS project detected.\n");
-            deployment.currentStep = "Publishing";
+
+            emitLog(
+                "\nStatic HTML/CSS/JS project detected.\n"
+            );
+
+            deployment.currentStep =
+                "Publishing";
+
             await deployment.save();
-            deployment.status = "success";
-            deployment.currentStep = "Deployment Complete";
-            deployment.outputDirectory = project.rootDirectory || ".";
-            deployment.url = `http://${deployment._id}.localhost:${ process.env.PORT || 4000 }/`;
-            await makeProductionDeployment(project,deployment);
-            emitLog(deployment,"\nStatic website deployed successfully.\n");
-            emitLog(deployment,`Deployment URL: ${deployment.url}\n`);
-            emitLog(deployment, `Production URL: http://${project.slug}.localhost:${ process.env.PORT || 4000 }/\n`);
+
+            deployment.status =
+                "success";
+
+            deployment.currentStep =
+                "Deployment Complete";
+
+            deployment.outputDirectory =
+                applicationDirectory || ".";
+
+            deployment.url =
+                `http://${deployment._id}.localhost:${
+                    process.env.PORT || 4000
+                }/`;
+
+            await makeProductionDeployment(
+                project,
+                deployment
+            );
+
+            emitLog(
+                "\nStatic website deployed successfully.\n"
+            );
+
+            emitLog(
+                `Deployment URL: ${deployment.url}\n`
+            );
+
+            emitLog(
+                `Production URL: http://${project.slug}.localhost:${
+                    process.env.PORT || 4000
+                }/\n`
+            );
+
             await deployment.save();
+
             return deployment;
         }
 
-        const packageJson = JSON.parse(fs.readFileSync(packagePath,"utf-8"));
-        emitLog(deployment, "package.json detected.\n");
+        // ----------------------------------------
+        // 9. Read package.json
+        // ----------------------------------------
+
+        let packageJson;
+
+        try {
+            packageJson = JSON.parse(
+                fs.readFileSync(
+                    packagePath,
+                    "utf8"
+                )
+            );
+        } catch (error) {
+            throw new Error(
+                "Invalid package.json"
+            );
+        }
+
+        emitLog(
+            "package.json detected.\n"
+        );
+
+        // ----------------------------------------
+        // 10. Detect framework
+        // ----------------------------------------
+
         const dependencies = {
             ...(packageJson.dependencies || {}),
             ...(packageJson.devDependencies || {})
@@ -165,79 +392,146 @@ const deployProject = async (project, branch = "main") => {
 
         let framework = "Unknown";
         let outputDirectory = "dist";
-        if (dependencies["@angular/core"]) {
+
+        if (
+            dependencies["@angular/core"]
+        ) {
             framework = "Angular";
             outputDirectory = "dist";
-        }
-        else if (dependencies["react-scripts"]) {
+        } else if (
+            dependencies["react-scripts"]
+        ) {
             framework = "Create React App";
             outputDirectory = "build";
-        }
-        else if (dependencies.vite) {
+        } else if (
+            dependencies.vite
+        ) {
             framework = "Vite";
             outputDirectory = "dist";
-        }
-        else if (dependencies.vue) {
+        } else if (
+            dependencies.vue
+        ) {
             framework = "Vue";
             outputDirectory = "dist";
-        }
-        else if (dependencies.next) {
+        } else if (
+            dependencies.next
+        ) {
             framework = "Next.js";
             outputDirectory = ".next";
         }
 
-        project.framework = framework;
-        project.outputDirectory = outputDirectory;
-        await ensureProjectSlug(project);
+        project.framework =
+            framework;
+
+        project.outputDirectory =
+            outputDirectory;
+
+        await ensureProjectSlug(
+            project
+        );
+
         await project.save();
-        emitLog(deployment, `Framework detected: ${framework}\n`);
+
+        emitLog(
+            `Framework detected: ${framework}\n`
+        );
+
         await deployment.save();
-        if (!packageJson.scripts?.build ) {
-            throw new Error("No build script found in package.json");
+
+        // ----------------------------------------
+        // 11. Validate build script
+        // ----------------------------------------
+
+        if (
+            !packageJson.scripts ||
+            !packageJson.scripts.build
+        ) {
+            throw new Error(
+                "No build script found in package.json"
+            );
         }
 
-        emitLog(deployment, "\nInstalling dependencies...\n");
-        deployment.currentStep = "Installing Dependencies";
+        // ----------------------------------------
+        // 12. Install dependencies
+        // ----------------------------------------
+
+        deployment.currentStep =
+            "Installing Dependencies";
+
+        emitLog(
+            "\nInstalling dependencies...\n"
+        );
+
         await deployment.save();
-        const hasPackageLock = fs.existsSync(path.join(applicationPath, "package-lock.json"));
+
+        const packageLockPath =
+            path.join(
+                applicationPath,
+                "package-lock.json"
+            );
+
+        const hasPackageLock =
+            fs.existsSync(
+                packageLockPath
+            );
+
         await runCommand(
             "npm",
             hasPackageLock
-                ? ["ci", "--no-audit", "--no-fund"]
-                : ["install", "--no-audit", "--no-fund"],
+                ? [
+                    "ci",
+                    "--no-audit",
+                    "--no-fund"
+                ]
+                : [
+                    "install",
+                    "--no-audit",
+                    "--no-fund"
+                ],
             applicationPath,
             {},
             (message) => {
-                emitLog(deployment, message);
+                emitLog(message);
             }
         );
-        // emitLog(deployment, installLogs);
-        emitLog(deployment, "\nDependencies installed.\n");
-        await deployment.save();
-        // const buildEnvironment = {};
-        // for (const variable of project.environmentVariables || []) {
-        //     buildEnvironment[variable.key] = variable.value;
-        // }
-
-        // deployment.currentStep = "Building Project";
-        emitLog(deployment, "\nBuilding application...\n");
-        await deployment.save();
-        const buildEnvironment = {
-            ...Object.fromEntries(
-                (project.environmentVariables || []).map((variable) => [
-                    variable.key,
-                    variable.value
-                ])
-            ),
-            CI: "true",
-            GENERATE_SOURCEMAP: "false",
-            NODE_OPTIONS: "--max-old-space-size=512"
-        };
-
-        deployment.currentStep = "Building Project";
 
         emitLog(
-            deployment,
+            "\nDependencies installed.\n"
+        );
+
+        await deployment.save();
+
+        // ----------------------------------------
+        // 13. Build environment
+        // ----------------------------------------
+
+        const buildEnvironment = {
+            ...Object.fromEntries(
+                (
+                    project.environmentVariables ||
+                    []
+                ).map(
+                    (variable) => [
+                        variable.key,
+                        variable.value
+                    ]
+                )
+            ),
+
+            CI: "true",
+
+            GENERATE_SOURCEMAP:
+                "false"
+        };
+
+        // ----------------------------------------
+        // 14. Build
+        // ----------------------------------------
+
+        deployment.currentStep =
+            "Building Project";
+
+        emitLog(
             "\nBuilding application...\n"
         );
 
@@ -245,49 +539,138 @@ const deployProject = async (project, branch = "main") => {
 
         await runCommand(
             "npm",
-            ["run", "build"],
+            [
+                "run",
+                "build"
+            ],
             applicationPath,
             buildEnvironment,
             (message) => {
-                emitLog(deployment, message);
+                emitLog(message);
             }
         );
-        deployment.currentStep = "Publishing";
+
+        // ----------------------------------------
+        // 15. Find build output
+        // ----------------------------------------
+
+        deployment.currentStep =
+            "Publishing";
+
         await deployment.save();
-        const outputPath = path.join(applicationPath, outputDirectory);
-        if (!fs.existsSync(outputPath)) {
-            throw new Error(`Build completed but '${outputDirectory}' directory was not found`);
+
+        const outputPath =
+            path.join(
+                applicationPath,
+                outputDirectory
+            );
+
+        if (
+            !fs.existsSync(
+                outputPath
+            )
+        ) {
+            throw new Error(
+                `Build completed but '${outputDirectory}' directory was not found`
+            );
         }
 
-        const indexPath = path.join(outputPath,"index.html");
-        if (fs.existsSync(indexPath)) {
-            let html = fs.readFileSync(indexPath, "utf-8");
-            fs.writeFileSync(indexPath, html, "utf-8");
-            emitLog(deployment, "Asset paths configured.\n");
+        // ----------------------------------------
+        // 16. Configure index.html
+        // ----------------------------------------
+
+        const indexPath =
+            path.join(
+                outputPath,
+                "index.html"
+            );
+
+        if (
+            fs.existsSync(indexPath)
+        ) {
+            const html =
+                fs.readFileSync(
+                    indexPath,
+                    "utf8"
+                );
+
+            fs.writeFileSync(
+                indexPath,
+                html,
+                "utf8"
+            );
+
+            emitLog(
+                "Asset paths configured.\n"
+            );
         }
 
-        deployment.status = "success";
-        deployment.currentStep = "Deployment Complete";
-        deployment.outputDirectory = outputDirectory;
-        deployment.url = `http://${deployment._id}.localhost:${process.env.PORT || 4000}/`;
-        await makeProductionDeployment(project,deployment);
-        emitLog(deployment, "\nBuild completed successfully.\n");
-        emitLog(deployment, `Deployment URL: ${deployment.url}\n`);
-        emitLog(deployment, `Production URL: http://${project.slug}.localhost:${process.env.PORT || 4000}/\n`);
+        // ----------------------------------------
+        // 17. Mark success
+        // ----------------------------------------
+
+        deployment.status =
+            "success";
+
+        deployment.currentStep =
+            "Deployment Complete";
+
+        deployment.outputDirectory =
+            outputDirectory;
+
+        deployment.url =
+            `http://${deployment._id}.localhost:${
+                process.env.PORT || 4000
+            }/`;
+
+        await makeProductionDeployment(
+            project,
+            deployment
+        );
+
+        emitLog(
+            "\nBuild completed successfully.\n"
+        );
+
+        emitLog(
+            `Deployment URL: ${deployment.url}\n`
+        );
+
+        emitLog(
+            `Production URL: http://${project.slug}.localhost:${
+                process.env.PORT || 4000
+            }/\n`
+        );
+
         await deployment.save();
+
         return deployment;
-    } catch (error) {
 
-        console.error("Deployment failed:", error);
-        if (deployment) { 
-            deployment.status ="failed";
-            deployment.currentStep = "Failed";
-            emitLog(deployment, `\nDeployment failed:\n${error.message}\n`);
+    } catch (error) {
+        console.error(
+            "Deployment failed:",
+            error
+        );
+
+        if (deployment) {
+            deployment.status =
+                "failed";
+
+            deployment.currentStep =
+                "Failed";
+
+            emitLog(
+                `\nDeployment failed:\n${error.message}\n`
+            );
+
             await deployment.save();
         }
-        error.deployment = deployment;
+
+        error.deployment =
+            deployment;
+
         throw error;
     }
 };
 
-module.exports = deployProject;
+module.exports = processDeployment;
