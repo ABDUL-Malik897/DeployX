@@ -1,0 +1,71 @@
+name: DeployX Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner:
+        required: true
+        type: string
+
+      repo:
+        required: true
+        type: string
+
+      branch:
+        required: true
+        type: string
+
+      root_directory:
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.DEPLOYX_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPLOYX_APP_PRIVATE_KEY }}
+          owner: ${{ inputs.owner }}
+          repositories: ${{ inputs.repo }}
+
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.owner }}/${{ inputs.repo }}
+          ref: ${{ inputs.branch }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Show build information
+        run: |
+          echo "Repository: ${{ inputs.owner }}/${{ inputs.repo }}"
+          echo "Branch: ${{ inputs.branch }}"
+          echo "Root directory: ${{ inputs.root_directory }}"
+          node --version
+          npm --version
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.root_directory }}
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "package-lock.json found. Using npm ci..."
+            npm ci --no-audit --no-fund
+          else
+            echo "No package-lock.json found. Using npm install..."
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build project
+        working-directory: ${{ inputs.root_directory }}
+        run: npm run build
