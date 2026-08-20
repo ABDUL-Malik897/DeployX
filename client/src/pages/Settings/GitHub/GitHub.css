@@ -99,6 +99,7 @@
     border-radius: 12px;
     max-height: 550px;
     overflow-y: auto;
+    scrollbar-color: var(--surface) transparent;
 }
 
 .github-repositories-header {
