@@ -101,22 +101,9 @@ const GitHub = () => {
         connectInstallation(installationId);
     }, [connectInstallation, searchParams, setSearchParams]);
 
-    const handleConnect = async () => {
-        try {
-            setConnecting(true);
-            const response = await API.get("/auth/github/installation");
-            if (response.data?.installationId) {
-                await connectInstallation(response.data.installationId);
-                return;
-            }
-            window.location.href = "https://github.com/apps/deployx-platform/installations/new";
-        } catch (error) {
-            console.error(error);
-            setError(error.response?.data?.message || "Unable to connect GitHub.");
-        } finally {
-            setConnecting(false);
-        }
-    };
+    const handleConnect = () => {
+    window.location.href = "https://github.com/apps/deployx-platform/installations/new";
+};
 
     const fetchBranches = async (repository) => {
         try {
