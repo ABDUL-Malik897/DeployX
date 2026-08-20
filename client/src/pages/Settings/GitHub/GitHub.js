@@ -91,7 +91,7 @@ const GitHub = () => {
             setupAction,
             alreadyHandled: installationHandled.current
         });
-        if (!installationId || setupAction !== "install" || installationHandled.current) {
+        if (!installationId || !["install", "update"].includes(setupAction) || installationHandled.current) {
             console.log("GitHub installation effect stopped");
             return;
         }
