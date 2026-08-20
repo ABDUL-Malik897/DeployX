@@ -101,8 +101,7 @@ const deployProject = async (project, branch = "main") => {
         emitLog(deployment, "Starting deployment...\n");
         emitLog(deployment,`Cloning branch '${branch}'...\n`);
         await deployment.save();
-
-        const cloneLogs = await runCommand(
+        await runCommand(
             "git",
             [
                 "clone",
@@ -113,8 +112,13 @@ const deployProject = async (project, branch = "main") => {
                 project.repository,
                 "."
             ],
-            buildPath
+            buildPath,
+            {},
+            (message) => {
+                emitLog(deployment, message);
+            }
         );
+        emitLog(deployment, "\nRepository cloned.\n");
 
         const applicationPath = path.resolve(buildPath, project.rootDirectory || "");
         if (applicationPath !== buildPath && !applicationPath.startsWith(buildPath + path.sep)) {
@@ -126,8 +130,8 @@ const deployProject = async (project, branch = "main") => {
         }
 
         deployment.currentStep = "Detecting Project";
-        emitLog(deployment, cloneLogs);
-        emitLog(deployment, "\nRepository cloned.\n");
+        // emitLog(deployment, cloneLogs);
+        // emitLog(deployment, "\nRepository cloned.\n");
         emitLog(deployment, `Application directory: ${ project.rootDirectory || "." }\n`);
         await deployment.save();
         const packagePath = path.join(applicationPath, "package.json");
@@ -196,29 +200,58 @@ const deployProject = async (project, branch = "main") => {
         deployment.currentStep = "Installing Dependencies";
         await deployment.save();
         const hasPackageLock = fs.existsSync(path.join(applicationPath, "package-lock.json"));
-        const installLogs = await runCommand("npm", hasPackageLock ? ["ci"] : ["install"], applicationPath);
-        emitLog(deployment, installLogs);
+        await runCommand(
+            "npm",
+            hasPackageLock
+                ? ["ci", "--no-audit", "--no-fund"]
+                : ["install", "--no-audit", "--no-fund"],
+            applicationPath,
+            {},
+            (message) => {
+                emitLog(deployment, message);
+            }
+        );
+        // emitLog(deployment, installLogs);
         emitLog(deployment, "\nDependencies installed.\n");
         await deployment.save();
-        const buildEnvironment = {};
-        for (const variable of project.environmentVariables || []) {
-            buildEnvironment[variable.key] = variable.value;
-        }
+        // const buildEnvironment = {};
+        // for (const variable of project.environmentVariables || []) {
+        //     buildEnvironment[variable.key] = variable.value;
+        // }
 
-        deployment.currentStep = "Building Project";
+        // deployment.currentStep = "Building Project";
         emitLog(deployment, "\nBuilding application...\n");
         await deployment.save();
-        const buildLogs = await runCommand(
-            "npm",
-            [
-                "run",
-                "build"
-            ],
-            applicationPath,
-            buildEnvironment
+        const buildEnvironment = {
+            ...Object.fromEntries(
+                (project.environmentVariables || []).map((variable) => [
+                    variable.key,
+                    variable.value
+                ])
+            ),
+            CI: "true",
+            GENERATE_SOURCEMAP: "false",
+            NODE_OPTIONS: "--max-old-space-size=512"
+        };
+
+        deployment.currentStep = "Building Project";
+
+        emitLog(
+            deployment,
+            "\nBuilding application...\n"
         );
 
-        emitLog(deployment, buildLogs);
+        await deployment.save();
+
+        await runCommand(
+            "npm",
+            ["run", "build"],
+            applicationPath,
+            buildEnvironment,
+            (message) => {
+                emitLog(deployment, message);
+            }
+        );
         deployment.currentStep = "Publishing";
         await deployment.save();
         const outputPath = path.join(applicationPath, outputDirectory);
