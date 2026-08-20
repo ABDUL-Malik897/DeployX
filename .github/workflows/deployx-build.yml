@@ -69,3 +69,20 @@ jobs:
       - name: Build project
         working-directory: ${{ inputs.root_directory }}
         run: npm run build
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy to Vercel
+        id: vercel-deploy
+        working-directory: ${{ inputs.root_directory }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
+          echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployment URL: $url"
+
+      - name: Show deployment URL
+        run: |
+          echo "DEPLOYMENT_URL=${{ steps.vercel-deploy.outputs.deployment_url }}"
