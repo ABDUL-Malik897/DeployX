@@ -248,10 +248,25 @@ const GitHub = () => {
         const githubConnected = searchParams.get("github_connected");
         const githubError = searchParams.get("github_error");
         if (githubConnected === "true") {
-            setConnected(true);
-            setSuccess("GitHub connected successfully.");
-            setSearchParams({}, { replace: true });
-            fetchRepositories();
+            const loadConnectedUser = async () => {
+                try {
+                    const response = await API.get("/auth/me");
+                    const updatedUser = response.data.user;
+                    dispatch({
+                        type: "UPDATE_USER",
+                        payload: updatedUser
+                    });
+                    localStorage.setItem("user", JSON.stringify(updatedUser));
+                    setConnected(true);
+                    setSuccess("GitHub connected successfully.");
+                    setSearchParams({}, { replace: true });
+                    await fetchRepositories();
+                } catch (error) {
+                    console.error("Unable to refresh connected user:", error);
+                    setError(error.response?.data?.message || "GitHub connected, but unable to refresh your account.");
+                }
+            };
+            loadConnectedUser();
         }
         if (githubError === "app_not_installed") {
             setError("DeployX GitHub App is not installed on this GitHub account.");
@@ -261,7 +276,7 @@ const GitHub = () => {
             setError("DeployX user not found.");
             setSearchParams({}, { replace: true });
         }
-    }, [searchParams,setSearchParams,fetchRepositories]);
+    }, [searchParams, setSearchParams, fetchRepositories, dispatch]);
 
     return (
         <div className="github-settings">
@@ -459,7 +474,7 @@ const GitHub = () => {
                                     <div className="inspection-info">
                                         <div>
                                             <span>
-                                                Repository
+                                                Repository:- 
                                             </span>
                                             <strong>
                                                 {selectedRepository.fullName}
@@ -467,7 +482,7 @@ const GitHub = () => {
                                         </div>
                                         <div>
                                             <span>
-                                                Branch
+                                                Branch:- 
                                             </span>
                                             <strong>
                                                 {selectedBranch}
@@ -475,7 +490,7 @@ const GitHub = () => {
                                         </div>
                                         <div>
                                             <span>
-                                                Repository Type
+                                                Repository Type:- 
                                             </span>
                                             <strong>
                                                 {inspection.repositoryType || "Unknown"}
