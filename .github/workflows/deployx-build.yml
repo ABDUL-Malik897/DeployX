@@ -4,18 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       owner:
+        description: "GitHub repository owner"
         required: true
         type: string
 
       repo:
+        description: "GitHub repository name"
         required: true
         type: string
 
       branch:
+        description: "GitHub branch to build"
         required: true
         type: string
 
       root_directory:
+        description: "Application root directory"
         required: false
         type: string
         default: ""
@@ -25,6 +29,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --------------------------------------------------
+      # 1. Create GitHub App token
+      # --------------------------------------------------
+
       - name: Create GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3
@@ -34,6 +42,10 @@ jobs:
           owner: ${{ inputs.owner }}
           repositories: ${{ inputs.repo }}
 
+      # --------------------------------------------------
+      # 2. Checkout target repository
+      # --------------------------------------------------
+
       - name: Checkout target repository
         uses: actions/checkout@v4
         with:
@@ -41,44 +53,114 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ steps.app-token.outputs.token }}
 
+      # --------------------------------------------------
+      # 3. Setup Node
+      # --------------------------------------------------
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
+      # --------------------------------------------------
+      # 4. Show build information
+      # --------------------------------------------------
+
       - name: Show build information
         run: |
           echo "Repository: ${{ inputs.owner }}/${{ inputs.repo }}"
           echo "Branch: ${{ inputs.branch }}"
-          echo "Root directory: ${{ inputs.root_directory }}"
+          echo "Root directory: '${{ inputs.root_directory }}'"
+          echo ""
+          echo "Node:"
           node --version
+          echo ""
+          echo "NPM:"
           npm --version
+          echo ""
+          echo "Current directory:"
+          pwd
+          echo ""
+          echo "Files:"
+          ls -la
+
+      # --------------------------------------------------
+      # 5. Install dependencies
+      # --------------------------------------------------
 
       - name: Install dependencies
         working-directory: ${{ inputs.root_directory }}
         shell: bash
         run: |
           if [ -f package-lock.json ]; then
-            echo "package-lock.json found. Using npm ci..."
+            echo "package-lock.json found."
+            echo "Using npm ci..."
             npm ci --no-audit --no-fund
           else
-            echo "No package-lock.json found. Using npm install..."
+            echo "No package-lock.json found."
+            echo "Using npm install..."
             npm install --no-audit --no-fund
           fi
 
+      # --------------------------------------------------
+      # 6. Build application
+      # --------------------------------------------------
+
       - name: Build project
         working-directory: ${{ inputs.root_directory }}
-        run: npm run build
+        run: |
+          npm run build
+
+      # --------------------------------------------------
+      # 7. Install Vercel CLI
+      # --------------------------------------------------
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: |
+          npm install --global vercel@latest
+
+      # --------------------------------------------------
+      # 8. Link Vercel project
+      # --------------------------------------------------
+
+      - name: Link Vercel project
+        working-directory: ${{ inputs.root_directory }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel link \
+            --yes \
+            --token="$VERCEL_TOKEN"
+
+      # --------------------------------------------------
+      # 9. Pull Vercel project settings
+      # --------------------------------------------------
+
+      - name: Pull Vercel project settings
+        working-directory: ${{ inputs.root_directory }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel pull \
+            --yes \
+            --environment=preview \
+            --token="$VERCEL_TOKEN"
+
+      # --------------------------------------------------
+      # 10. Create Vercel build output
+      # --------------------------------------------------
 
       - name: Create Vercel build output
         working-directory: ${{ inputs.root_directory }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          vercel build --token="$VERCEL_TOKEN"
+          vercel build \
+            --token="$VERCEL_TOKEN"
+
+      # --------------------------------------------------
+      # 11. Deploy prebuilt output to Vercel
+      # --------------------------------------------------
 
       - name: Deploy to Vercel
         id: vercel-deploy
@@ -86,10 +168,27 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN" --yes)
+          url=$(vercel deploy \
+            --prebuilt \
+            --token="$VERCEL_TOKEN" \
+            --yes)
+
           echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
-          echo "Deployment URL: $url"
+
+          echo ""
+          echo "========================================"
+          echo "Deployment URL:"
+          echo "$url"
+          echo "========================================"
+
+      # --------------------------------------------------
+      # 12. Show final URL
+      # --------------------------------------------------
 
       - name: Show deployment URL
         run: |
-          echo "DEPLOYMENT_URL=${{ steps.vercel-deploy.outputs.deployment_url }}"
+          echo ""
+          echo "========================================"
+          echo "DEPLOYMENT_URL:"
+          echo "${{ steps.vercel-deploy.outputs.deployment_url }}"
+          echo "========================================"
