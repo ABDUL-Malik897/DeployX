@@ -4,17 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       owner:
-        description: "GitHub repository owner"
+        description: "Target GitHub repository owner"
         required: true
         type: string
 
       repo:
-        description: "GitHub repository name"
+        description: "Target GitHub repository name"
         required: true
         type: string
 
       branch:
-        description: "GitHub branch to build"
+        description: "Target GitHub branch"
         required: true
         type: string
 
@@ -24,14 +24,31 @@ on:
         type: string
         default: ""
 
+      deployment_id:
+        description: "DeployX MongoDB deployment ID"
+        required: true
+        type: string
+
+      output_directory:
+        description: "Build output directory"
+        required: true
+        type: string
+        default: "dist"
+
+      project_slug:
+        description: "DeployX project slug"
+        required: true
+        type: string
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # --------------------------------------------------
+
+      # ----------------------------------------
       # 1. Create GitHub App token
-      # --------------------------------------------------
+      # ----------------------------------------
 
       - name: Create GitHub App token
         id: app-token
@@ -42,9 +59,9 @@ jobs:
           owner: ${{ inputs.owner }}
           repositories: ${{ inputs.repo }}
 
-      # --------------------------------------------------
+      # ----------------------------------------
       # 2. Checkout target repository
-      # --------------------------------------------------
+      # ----------------------------------------
 
       - name: Checkout target repository
         uses: actions/checkout@v4
@@ -53,24 +70,31 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ steps.app-token.outputs.token }}
 
-      # --------------------------------------------------
+      # ----------------------------------------
       # 3. Setup Node
-      # --------------------------------------------------
+      # ----------------------------------------
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # --------------------------------------------------
-      # 4. Show build information
-      # --------------------------------------------------
+      # ----------------------------------------
+      # 4. Show deployment information
+      # ----------------------------------------
 
-      - name: Show build information
+      - name: Show deployment information
         run: |
+          echo "========================================"
+          echo "DeployX Deployment"
+          echo "========================================"
           echo "Repository: ${{ inputs.owner }}/${{ inputs.repo }}"
           echo "Branch: ${{ inputs.branch }}"
           echo "Root directory: '${{ inputs.root_directory }}'"
+          echo "Deployment ID: ${{ inputs.deployment_id }}"
+          echo "Output directory: ${{ inputs.output_directory }}"
+          echo "Project slug: ${{ inputs.project_slug }}"
+          echo "========================================"
           echo ""
           echo "Node:"
           node --version
@@ -78,117 +102,166 @@ jobs:
           echo "NPM:"
           npm --version
           echo ""
-          echo "Current directory:"
+          echo "Working directory:"
           pwd
           echo ""
-          echo "Files:"
+          echo "Repository contents:"
           ls -la
 
-      # --------------------------------------------------
+      # ----------------------------------------
       # 5. Install dependencies
-      # --------------------------------------------------
+      # ----------------------------------------
 
       - name: Install dependencies
         working-directory: ${{ inputs.root_directory }}
         shell: bash
         run: |
+          echo "Installing dependencies..."
+
           if [ -f package-lock.json ]; then
             echo "package-lock.json found."
-            echo "Using npm ci..."
             npm ci --no-audit --no-fund
           else
             echo "No package-lock.json found."
-            echo "Using npm install..."
             npm install --no-audit --no-fund
           fi
 
-      # --------------------------------------------------
-      # 6. Build application
-      # --------------------------------------------------
+      # ----------------------------------------
+      # 6. Build project
+      # ----------------------------------------
 
       - name: Build project
         working-directory: ${{ inputs.root_directory }}
+        shell: bash
         run: |
+          echo "Running application build..."
+
           npm run build
 
-      # --------------------------------------------------
+          echo ""
+          echo "Build completed."
+          echo ""
+          echo "Build output:"
+          ls -la "${{ inputs.output_directory }}"
+
+      # ----------------------------------------
       # 7. Install Vercel CLI
-      # --------------------------------------------------
+      # ----------------------------------------
 
       - name: Install Vercel CLI
         run: |
           npm install --global vercel@latest
 
-      # --------------------------------------------------
-      # 8. Link Vercel project
-      # --------------------------------------------------
+          echo ""
+          echo "Vercel version:"
+          vercel --version
 
-      - name: Link Vercel project
-        working-directory: ${{ inputs.root_directory }}
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          vercel link \
-            --yes \
-            --token="$VERCEL_TOKEN"
-
-      # --------------------------------------------------
-      # 9. Pull Vercel project settings
-      # --------------------------------------------------
-
-      - name: Pull Vercel project settings
-        working-directory: ${{ inputs.root_directory }}
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          vercel pull \
-            --yes \
-            --environment=preview \
-            --token="$VERCEL_TOKEN"
-
-      # --------------------------------------------------
-      # 10. Create Vercel build output
-      # --------------------------------------------------
-
-      - name: Create Vercel build output
-        working-directory: ${{ inputs.root_directory }}
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          vercel build \
-            --token="$VERCEL_TOKEN"
-
-      # --------------------------------------------------
-      # 11. Deploy prebuilt output to Vercel
-      # --------------------------------------------------
+      # ----------------------------------------
+      # 8. Deploy built project to Vercel
+      # ----------------------------------------
 
       - name: Deploy to Vercel
         id: vercel-deploy
         working-directory: ${{ inputs.root_directory }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
         run: |
-          url=$(vercel deploy \
-            --prebuilt \
-            --token="$VERCEL_TOKEN" \
-            --yes)
+          set -e
+
+          OUTPUT_DIR="${{ inputs.output_directory }}"
+
+          if [ ! -d "$OUTPUT_DIR" ]; then
+            echo "Build output directory '$OUTPUT_DIR' does not exist."
+            exit 1
+          fi
+
+          echo "Deploying '$OUTPUT_DIR' to Vercel..."
+
+          mkdir -p ../deployx-vercel-upload
+
+          rm -rf ../deployx-vercel-upload/*
+
+          cp -R "$OUTPUT_DIR"/. ../deployx-vercel-upload/
+
+          cd ../deployx-vercel-upload
+
+          echo "Files being deployed:"
+          ls -la
+
+          echo ""
+          echo "Starting Vercel deployment..."
+
+          url=$(
+            vercel deploy \
+              --prod \
+              --yes \
+              --token="$VERCEL_TOKEN"
+          )
+
+          url="$(echo "$url" | tail -n 1 | tr -d '\r')"
+
+          if [ -z "$url" ]; then
+            echo "Vercel did not return a deployment URL."
+            exit 1
+          fi
+
+          echo "Deployment URL: $url"
 
           echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
 
-          echo ""
-          echo "========================================"
-          echo "Deployment URL:"
-          echo "$url"
-          echo "========================================"
+      # ----------------------------------------
+      # 9. Send result back to DeployX
+      # ----------------------------------------
 
-      # --------------------------------------------------
-      # 12. Show final URL
-      # --------------------------------------------------
-
-      - name: Show deployment URL
+      - name: Report deployment success
+        if: success()
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.vercel-deploy.outputs.deployment_url }}
+          OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
+          DEPLOYX_API_URL: ${{ secrets.DEPLOYX_API_URL }}
+          DEPLOYX_DEPLOYMENT_SECRET: ${{ secrets.DEPLOYX_DEPLOYMENT_SECRET }}
+        shell: bash
         run: |
-          echo ""
-          echo "========================================"
-          echo "DEPLOYMENT_URL:"
-          echo "${{ steps.vercel-deploy.outputs.deployment_url }}"
-          echo "========================================"
+          echo "Reporting successful deployment to DeployX..."
+
+          curl --fail-with-body \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --header "X-DeployX-Secret: $DEPLOYX_DEPLOYMENT_SECRET" \
+            --data "{
+              \"deploymentId\": \"${DEPLOYMENT_ID}\",
+              \"status\": \"success\",
+              \"url\": \"${DEPLOYMENT_URL}\",
+              \"currentStep\": \"Deployment Complete\",
+              \"outputDirectory\": \"${OUTPUT_DIRECTORY}\",
+              \"logs\": \"GitHub Actions build and Vercel deployment completed successfully.\\nDeployment URL: ${DEPLOYMENT_URL}\\n\"
+            }" \
+            "${DEPLOYX_API_URL}/api/webhooks/deployment"
+
+      # ----------------------------------------
+      # 10. Report deployment failure
+      # ----------------------------------------
+
+      - name: Report deployment failure
+        if: failure()
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          DEPLOYX_API_URL: ${{ secrets.DEPLOYX_API_URL }}
+          DEPLOYX_DEPLOYMENT_SECRET: ${{ secrets.DEPLOYX_DEPLOYMENT_SECRET }}
+        shell: bash
+        run: |
+          echo "Reporting failed deployment to DeployX..."
+
+          curl --fail-with-body \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --header "X-DeployX-Secret: $DEPLOYX_DEPLOYMENT_SECRET" \
+            --data "{
+              \"deploymentId\": \"${DEPLOYMENT_ID}\",
+              \"status\": \"failed\",
+              \"currentStep\": \"Failed\",
+              \"logs\": \"GitHub Actions deployment failed. Check the GitHub Actions logs for details.\\n\"
+            }" \
+            "${DEPLOYX_API_URL}/api/webhooks/deployment"

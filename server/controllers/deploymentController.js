@@ -118,7 +118,16 @@ const createDeployment = async (req, res) => {
                 branch,
 
                 rootDirectory:
-                    project.rootDirectory || ""
+                    project.rootDirectory || "",
+
+                deploymentId:
+                    deployment._id.toString(),
+
+                outputDirectory:
+                    project.outputDirectory || "dist",
+
+                projectSlug:
+                    project.slug
             });
 
             deployment.currentStep =
@@ -335,7 +344,16 @@ const redeployDeployment = async (req, res) => {
                     deployment.branch || "main",
 
                 rootDirectory:
-                    project.rootDirectory || ""
+                    project.rootDirectory || "",
+
+                deploymentId:
+                    newDeployment._id.toString(),
+
+                outputDirectory:
+                    project.outputDirectory || "dist",
+
+                projectSlug:
+                    project.slug
             });
 
             newDeployment.currentStep =
