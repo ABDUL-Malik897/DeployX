@@ -44,11 +44,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      DEPLOYX_API_URL: ${{ secrets.DEPLOYX_API_URL }}
+      DEPLOYX_DEPLOYMENT_SECRET: ${{ secrets.DEPLOYX_DEPLOYMENT_SECRET }}
+      DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+      OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
+      PROJECT_SLUG: ${{ inputs.project_slug }}
+
     steps:
 
-      # ----------------------------------------
+      # ========================================
       # 1. Create GitHub App token
-      # ----------------------------------------
+      # ========================================
 
       - name: Create GitHub App token
         id: app-token
@@ -59,9 +66,68 @@ jobs:
           owner: ${{ inputs.owner }}
           repositories: ${{ inputs.repo }}
 
-      # ----------------------------------------
-      # 2. Checkout target repository
-      # ----------------------------------------
+      # ========================================
+      # 2. Create DeployX progress reporter
+      # ========================================
+
+      - name: Create DeployX progress reporter
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/report-deployx.sh" <<'SCRIPT'
+          #!/usr/bin/env bash
+
+          STATUS="$1"
+          CURRENT_STEP="$2"
+          MESSAGE="$3"
+          DEPLOYMENT_URL="${4:-}"
+
+          export STATUS
+          export CURRENT_STEP
+          export MESSAGE
+          export DEPLOYMENT_URL
+
+          python - <<'PY' > "$RUNNER_TEMP/deployx-payload.json"
+          import json
+          import os
+
+          payload = {
+              "deploymentId": os.environ["DEPLOYMENT_ID"],
+              "status": os.environ["STATUS"],
+              "currentStep": os.environ["CURRENT_STEP"],
+              "logs": os.environ["MESSAGE"] + "\n"
+          }
+
+          if os.environ.get("DEPLOYMENT_URL"):
+              payload["url"] = os.environ["DEPLOYMENT_URL"]
+
+          if os.environ.get("OUTPUT_DIRECTORY"):
+              payload["outputDirectory"] = os.environ["OUTPUT_DIRECTORY"]
+
+          print(json.dumps(payload))
+          PY
+
+          echo ""
+          echo "DeployX progress:"
+          echo "$MESSAGE"
+
+          curl \
+            --silent \
+            --show-error \
+            --fail-with-body \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --header "X-DeployX-Secret: $DEPLOYX_DEPLOYMENT_SECRET" \
+            --data-binary "@$RUNNER_TEMP/deployx-payload.json" \
+            "${DEPLOYX_API_URL}/api/webhooks/deployment" \
+            || echo "WARNING: DeployX progress update failed."
+
+          SCRIPT
+
+          chmod +x "$RUNNER_TEMP/report-deployx.sh"
+
+      # ========================================
+      # 3. Checkout target repository
+      # ========================================
 
       - name: Checkout target repository
         uses: actions/checkout@v4
@@ -70,18 +136,30 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ steps.app-token.outputs.token }}
 
-      # ----------------------------------------
-      # 3. Setup Node
-      # ----------------------------------------
+      # ========================================
+      # 4. Report checkout complete
+      # ========================================
+
+      - name: Report checkout complete
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "building" \
+            "Repository Ready" \
+            "Repository ${{ inputs.owner }}/${{ inputs.repo }} checked out successfully.\nBranch: ${{ inputs.branch }}"
+
+      # ========================================
+      # 5. Setup Node
+      # ========================================
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # ----------------------------------------
-      # 4. Show deployment information
-      # ----------------------------------------
+      # ========================================
+      # 6. Show deployment information
+      # ========================================
 
       - name: Show deployment information
         run: |
@@ -102,15 +180,27 @@ jobs:
           echo "NPM:"
           npm --version
           echo ""
-          echo "Working directory:"
+          echo "Current directory:"
           pwd
           echo ""
           echo "Repository contents:"
           ls -la
 
-      # ----------------------------------------
-      # 5. Install dependencies
-      # ----------------------------------------
+      # ========================================
+      # 7. Installing dependencies - START
+      # ========================================
+
+      - name: Report dependency installation started
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "building" \
+            "Installing Dependencies" \
+            "Installing project dependencies..."
+
+      # ========================================
+      # 8. Install dependencies
+      # ========================================
 
       - name: Install dependencies
         working-directory: ${{ inputs.root_directory }}
@@ -120,22 +210,47 @@ jobs:
 
           if [ -f package-lock.json ]; then
             echo "package-lock.json found."
+            echo "Running npm ci..."
             npm ci --no-audit --no-fund
           else
             echo "No package-lock.json found."
+            echo "Running npm install..."
             npm install --no-audit --no-fund
           fi
 
-      # ----------------------------------------
-      # 6. Build project
-      # ----------------------------------------
+      # ========================================
+      # 9. Installing dependencies - COMPLETE
+      # ========================================
+
+      - name: Report dependency installation complete
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "building" \
+            "Dependencies Installed" \
+            "Project dependencies installed successfully."
+
+      # ========================================
+      # 10. Build - START
+      # ========================================
+
+      - name: Report build started
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "building" \
+            "Building Project" \
+            "Starting application build with npm run build..."
+
+      # ========================================
+      # 11. Build project
+      # ========================================
 
       - name: Build project
         working-directory: ${{ inputs.root_directory }}
         shell: bash
         run: |
           echo "Running application build..."
-
           npm run build
 
           echo ""
@@ -144,21 +259,46 @@ jobs:
           echo "Build output:"
           ls -la "${{ inputs.output_directory }}"
 
-      # ----------------------------------------
-      # 7. Install Vercel CLI
-      # ----------------------------------------
+      # ========================================
+      # 12. Build - COMPLETE
+      # ========================================
+
+      - name: Report build complete
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "building" \
+            "Build Complete" \
+            "Application built successfully.\nOutput directory: ${{ inputs.output_directory }}"
+
+      # ========================================
+      # 13. Install Vercel CLI
+      # ========================================
 
       - name: Install Vercel CLI
         run: |
+          echo "Installing Vercel CLI..."
           npm install --global vercel@latest
 
           echo ""
           echo "Vercel version:"
           vercel --version
 
-      # ----------------------------------------
-      # 8. Deploy built project to Vercel
-      # ----------------------------------------
+      # ========================================
+      # 14. Report Vercel preparation
+      # ========================================
+
+      - name: Report Vercel preparation
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "building" \
+            "Preparing Deployment" \
+            "Vercel CLI is ready. Preparing production deployment..."
+
+      # ========================================
+      # 15. Deploy to Vercel
+      # ========================================
 
       - name: Deploy to Vercel
         id: vercel-deploy
@@ -206,62 +346,37 @@ jobs:
             exit 1
           fi
 
-          echo "Deployment URL: $url"
+          echo ""
+          echo "========================================"
+          echo "Vercel Deployment URL:"
+          echo "$url"
+          echo "========================================"
 
           echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
 
-      # ----------------------------------------
-      # 9. Send result back to DeployX
-      # ----------------------------------------
+      # ========================================
+      # 16. Report Vercel deployment complete
+      # ========================================
 
-      - name: Report deployment success
+      - name: Report Vercel deployment complete
         if: success()
-        env:
-          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
-          DEPLOYMENT_URL: ${{ steps.vercel-deploy.outputs.deployment_url }}
-          OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
-          DEPLOYX_API_URL: ${{ secrets.DEPLOYX_API_URL }}
-          DEPLOYX_DEPLOYMENT_SECRET: ${{ secrets.DEPLOYX_DEPLOYMENT_SECRET }}
         shell: bash
         run: |
-          echo "Reporting successful deployment to DeployX..."
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "success" \
+            "Deployment Complete" \
+            "GitHub Actions build and Vercel deployment completed successfully.\nDeployment URL: ${{ steps.vercel-deploy.outputs.deployment_url }}" \
+            "${{ steps.vercel-deploy.outputs.deployment_url }}"
 
-          curl --fail-with-body \
-            --request POST \
-            --header "Content-Type: application/json" \
-            --header "X-DeployX-Secret: $DEPLOYX_DEPLOYMENT_SECRET" \
-            --data "{
-              \"deploymentId\": \"${DEPLOYMENT_ID}\",
-              \"status\": \"success\",
-              \"url\": \"${DEPLOYMENT_URL}\",
-              \"currentStep\": \"Deployment Complete\",
-              \"outputDirectory\": \"${OUTPUT_DIRECTORY}\",
-              \"logs\": \"GitHub Actions build and Vercel deployment completed successfully.\\nDeployment URL: ${DEPLOYMENT_URL}\\n\"
-            }" \
-            "${DEPLOYX_API_URL}/api/webhooks/deployment"
-
-      # ----------------------------------------
-      # 10. Report deployment failure
-      # ----------------------------------------
+      # ========================================
+      # 17. Report failure
+      # ========================================
 
       - name: Report deployment failure
         if: failure()
-        env:
-          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
-          DEPLOYX_API_URL: ${{ secrets.DEPLOYX_API_URL }}
-          DEPLOYX_DEPLOYMENT_SECRET: ${{ secrets.DEPLOYX_DEPLOYMENT_SECRET }}
         shell: bash
         run: |
-          echo "Reporting failed deployment to DeployX..."
-
-          curl --fail-with-body \
-            --request POST \
-            --header "Content-Type: application/json" \
-            --header "X-DeployX-Secret: $DEPLOYX_DEPLOYMENT_SECRET" \
-            --data "{
-              \"deploymentId\": \"${DEPLOYMENT_ID}\",
-              \"status\": \"failed\",
-              \"currentStep\": \"Failed\",
-              \"logs\": \"GitHub Actions deployment failed. Check the GitHub Actions logs for details.\\n\"
-            }" \
-            "${DEPLOYX_API_URL}/api/webhooks/deployment"
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "failed" \
+            "Failed" \
+            "Deployment failed. Check the GitHub Actions logs for the failed step."

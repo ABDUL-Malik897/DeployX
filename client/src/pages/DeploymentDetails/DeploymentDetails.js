@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import socket from "../../socket/socket";
 import API from "../../api/api";
@@ -6,176 +6,162 @@ import StatusBadge from "../../components/StatusBadge/StatusBadge";
 import "./DeploymentDetails.css";
 
 const DeploymentDetails = () => {
-
     const { id } = useParams();
 
-    const [deployment, setDeployment] =
-        useState(null);
+    const [deployment, setDeployment] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-    const [loading, setLoading] =
-        useState(true);
+    const [redeploying, setRedeploying] = useState(false);
+    const [redeployError, setRedeployError] = useState("");
 
-    const [error, setError] =
-        useState("");
+    const [rollingBack, setRollingBack] = useState(false);
+    const [rollbackError, setRollbackError] = useState("");
 
-    const [redeploying, setRedeploying] =
-        useState(false);
-
-    const [redeployError, setRedeployError] =
-        useState("");
-
-    const [rollingBack, setRollingBack] =
-        useState(false);
-
-    const [rollbackError, setRollbackError] =
-        useState("");
-
-    const logsRef =
-        useRef(null);
+    const logsRef = useRef(null);
 
     // --------------------------------------------------
-    // Load deployment
+    // Fetch deployment
     // --------------------------------------------------
 
-    useEffect(() => {
+    const fetchDeployment = useCallback(async (showLoading = false) => {
+        try {
+            if (showLoading) {
+                setLoading(true);
+            }
 
-        const fetchDeployment =
-            async () => {
+            const response = await API.get(
+                `/deployments/details/${id}`
+            );
 
-                try {
+            setDeployment(response.data);
+            setError("");
 
-                    setLoading(true);
-                    setError("");
+        } catch (error) {
+            console.error(
+                "Unable to load deployment:",
+                error
+            );
 
-                    const response =
-                        await API.get(
-                            `/deployments/details/${id}`
-                        );
+            if (showLoading) {
+                setError(
+                    error.response?.data?.message ||
+                    "Unable to load deployment"
+                );
+            }
 
-                    setDeployment(
-                        response.data
-                    );
-
-                } catch (error) {
-
-                    console.error(
-                        "Unable to load deployment:",
-                        error
-                    );
-
-                    setError(
-                        error.response?.data?.message ||
-                        "Unable to load deployment"
-                    );
-
-                } finally {
-
-                    setLoading(false);
-                }
-            };
-
-        if (id) {
-            fetchDeployment();
+        } finally {
+            if (showLoading) {
+                setLoading(false);
+            }
         }
-
-    }, [id]);
+    },[id])
 
     // --------------------------------------------------
-    // Real-time deployment updates
+    // Initial load
     // --------------------------------------------------
 
     useEffect(() => {
-
         if (!id) {
             return;
         }
 
+        fetchDeployment(true);
+    }, [id,fetchDeployment]);
+
+    // --------------------------------------------------
+    // Real-time updates + polling fallback
+    // --------------------------------------------------
+
+    useEffect(() => {
+        if (!id) {
+            return;
+        }
+
+        // Join deployment-specific socket room
         socket.emit(
             "join-deployment",
             id
         );
 
-        const handleDeploymentLog =
-            (data) => {
+        const handleDeploymentLog = (data) => {
+            if (!data) {
+                return;
+            }
 
-                if (
-                    (!data ||
-                    data.deploymentId) &&
-                    data.deploymentId !== id
-                ) {
-                    return;
+            if (
+                data.deploymentId &&
+                data.deploymentId !== id
+            ) {
+                return;
+            }
+
+            setDeployment((previous) => {
+                if (!previous) {
+                    return previous;
                 }
 
-                setDeployment(
-                    (previous) => {
+                return {
+                    ...previous,
 
-                        if (!previous) {
-                            return previous;
-                        }
+                    logs: data.log
+                        ? (
+                            (previous.logs || "") +
+                            data.log
+                        )
+                        : previous.logs,
 
-                        return {
-                            ...previous,
+                    status:
+                        data.status ||
+                        previous.status,
 
-                            logs:
-                                data.log
-                                    ? (
-                                        (previous.logs || "") +
-                                        data.log
-                                    )
-                                    : previous.logs,
+                    currentStep:
+                        data.currentStep ||
+                        previous.currentStep,
 
-                            status:
-                                data.status ||
-                                previous.status,
+                    url:
+                        data.url !== undefined
+                            ? data.url
+                            : previous.url
+                };
+            });
+        };
 
-                            currentStep:
-                                data.currentStep ||
-                                previous.currentStep,
+        const handleDeploymentUpdate = (data) => {
+            if (!data) {
+                return;
+            }
 
-                            url:
-                                data.url !== undefined
-                                    ? data.url
-                                    : previous.url
-                        };
-                    }
-                );
-            };
+            if (
+                data.deploymentId &&
+                data.deploymentId !== id
+            ) {
+                return;
+            }
 
-        const handleDeploymentUpdate =
-            (data) => {
-
-                if (
-                    (!data || data.deploymentId) && data.deploymentId !== id
-                ) {
-                    return;
+            setDeployment((previous) => {
+                if (!previous) {
+                    return previous;
                 }
 
-                setDeployment(
-                    (previous) => {
+                return {
+                    ...previous,
 
-                        if (!previous) {
-                            return previous;
-                        }
+                    status:
+                        data.status ||
+                        previous.status,
 
-                        return {
-                            ...previous,
+                    currentStep:
+                        data.currentStep ||
+                        previous.currentStep,
 
-                            status:
-                                data.status ||
-                                previous.status,
-
-                            currentStep:
-                                data.currentStep ||
-                                previous.currentStep,
-
-                            url:
-                                data.url !== undefined
-                                    ? data.url
-                                    : previous.url
-                        };
-                    }
-                );
-            };
+                    url:
+                        data.url !== undefined
+                            ? data.url
+                            : previous.url
+                };
+            });
+        };
 
         socket.on(
             "deployment-log",
@@ -187,8 +173,56 @@ const DeploymentDetails = () => {
             handleDeploymentUpdate
         );
 
-        return () => {
+        // --------------------------------------------------
+        // Poll backend every 2 seconds while active
+        // --------------------------------------------------
 
+        const pollingInterval = setInterval(
+            async () => {
+
+                try {
+                    const response = await API.get(
+                        `/deployments/details/${id}`
+                    );
+
+                    const latest =
+                        response.data;
+
+                    setDeployment((previous) => {
+
+                        if (!previous) {
+                            return latest;
+                        }
+
+                        return {
+                            ...previous,
+                            ...latest
+                        };
+                    });
+
+                    // Stop polling once deployment
+                    // reaches a final state.
+                    if (
+                        latest.status === "success" ||
+                        latest.status === "failed"
+                    ) {
+                        clearInterval(
+                            pollingInterval
+                        );
+                    }
+
+                } catch (error) {
+                    console.error(
+                        "Deployment polling failed:",
+                        error
+                    );
+                }
+
+            },
+            2000
+        );
+
+        return () => {
             socket.off(
                 "deployment-log",
                 handleDeploymentLog
@@ -198,114 +232,101 @@ const DeploymentDetails = () => {
                 "deployment-update",
                 handleDeploymentUpdate
             );
-        };
 
+            clearInterval(
+                pollingInterval
+            );
+        };
     }, [id]);
 
     // --------------------------------------------------
-    // Auto-scroll logs
+    // Auto-scroll build logs
     // --------------------------------------------------
 
     useEffect(() => {
-
         if (logsRef.current) {
-
             logsRef.current.scrollTop =
                 logsRef.current.scrollHeight;
         }
-
     }, [deployment?.logs]);
 
     // --------------------------------------------------
     // Redeploy
     // --------------------------------------------------
 
-    const handleRedeploy =
-        async () => {
+    const handleRedeploy = async () => {
+        try {
+            setRedeploying(true);
+            setRedeployError("");
+            setRollbackError("");
 
-            try {
+            const response = await API.post(
+                `/deployments/${id}/redeploy`
+            );
 
-                setRedeploying(true);
-                setRedeployError("");
-                setRollbackError("");
+            const newDeployment =
+                response.data.deployment;
 
-                const response =
-                    await API.post(
-                        `/deployments/${id}/redeploy`
-                    );
+            window.location.href =
+                `/deployments/${newDeployment._id}`;
 
-                const newDeployment =
-                    response.data.deployment;
+        } catch (error) {
+            console.error(
+                "Redeploy failed:",
+                error
+            );
 
-                window.location.href =
-                    `/deployments/${newDeployment._id}`;
+            setRedeployError(
+                error.response?.data?.message ||
+                "Unable to redeploy."
+            );
 
-            } catch (error) {
-
-                console.error(
-                    "Redeploy failed:",
-                    error
-                );
-
-                setRedeployError(
-                    error.response?.data?.message ||
-                    "Unable to redeploy."
-                );
-
-            } finally {
-
-                setRedeploying(false);
-            }
-        };
+        } finally {
+            setRedeploying(false);
+        }
+    };
 
     // --------------------------------------------------
     // Rollback
     // --------------------------------------------------
 
-    const handleRollback =
-        async () => {
+    const handleRollback = async () => {
+        const confirmed = window.confirm(
+            "Are you sure you want to rollback to this deployment?"
+        );
 
-            const confirmed =
-                window.confirm(
-                    "Are you sure you want to rollback to this deployment?"
-                );
+        if (!confirmed) {
+            return;
+        }
 
-            if (!confirmed) {
-                return;
-            }
+        try {
+            setRollingBack(true);
+            setRollbackError("");
+            setRedeployError("");
 
-            try {
+            const response = await API.post(
+                `/deployments/${id}/rollback`
+            );
 
-                setRollingBack(true);
-                setRollbackError("");
-                setRedeployError("");
+            setDeployment(
+                response.data.deployment
+            );
 
-                const response =
-                    await API.post(
-                        `/deployments/${id}/rollback`
-                    );
+        } catch (error) {
+            console.error(
+                "Rollback failed:",
+                error
+            );
 
-                setDeployment(
-                    response.data.deployment
-                );
+            setRollbackError(
+                error.response?.data?.message ||
+                "Unable to rollback."
+            );
 
-            } catch (error) {
-
-                console.error(
-                    "Rollback failed:",
-                    error
-                );
-
-                setRollbackError(
-                    error.response?.data?.message ||
-                    "Unable to rollback."
-                );
-
-            } finally {
-
-                setRollingBack(false);
-            }
-        };
+        } finally {
+            setRollingBack(false);
+        }
+    };
 
     // --------------------------------------------------
     // Loading
@@ -374,9 +395,7 @@ const DeploymentDetails = () => {
                 <div className="deployment-header-actions">
 
                     <StatusBadge
-                        status={
-                            deployment.status
-                        }
+                        status={deployment.status}
                     />
 
                     {deployment.status === "success" && (
@@ -437,9 +456,7 @@ const DeploymentDetails = () => {
                     </span>
 
                     <StatusBadge
-                        status={
-                            deployment.status
-                        }
+                        status={deployment.status}
                     />
 
                 </div>
@@ -482,7 +499,6 @@ const DeploymentDetails = () => {
                     </span>
 
                     {deployment.url ? (
-
                         <a
                             href={deployment.url}
                             target="_blank"
@@ -490,13 +506,10 @@ const DeploymentDetails = () => {
                         >
                             Visit Deployment →
                         </a>
-
                     ) : (
-
                         <strong>
                             Not available
                         </strong>
-
                     )}
 
                 </div>
