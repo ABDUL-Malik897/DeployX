@@ -101,9 +101,19 @@ const GitHub = () => {
         connectInstallation(installationId);
     }, [connectInstallation, searchParams, setSearchParams]);
 
-    const handleConnect = () => {
-    window.location.href = "https://github.com/apps/deployx-platform/installations/new";
-};
+    const handleConnect = async () => {
+        try {
+            setConnecting(true);
+            setError("");
+            setSuccess("");
+            const response = await API.get("/auth/github/connect/start");
+            window.location.href = response.data.url;
+        } catch (error) {
+            console.error(error);
+            setError(error.response?.data?.message || "Unable to start GitHub connection.");
+            setConnecting(false);
+        }
+    };
 
     const fetchBranches = async (repository) => {
         try {
@@ -233,6 +243,25 @@ const GitHub = () => {
         setSelectedRootDirectory("");
         setDeploymentError("");
     };
+
+    useEffect(() => {
+        const githubConnected = searchParams.get("github_connected");
+        const githubError = searchParams.get("github_error");
+        if (githubConnected === "true") {
+            setConnected(true);
+            setSuccess("GitHub connected successfully.");
+            setSearchParams({}, { replace: true });
+            fetchRepositories();
+        }
+        if (githubError === "app_not_installed") {
+            setError("DeployX GitHub App is not installed on this GitHub account.");
+            setSearchParams({}, { replace: true });
+        }
+        if (githubError === "user_not_found") {
+            setError("DeployX user not found.");
+            setSearchParams({}, { replace: true });
+        }
+    }, [searchParams,setSearchParams,fetchRepositories]);
 
     return (
         <div className="github-settings">

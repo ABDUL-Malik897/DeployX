@@ -1,5 +1,5 @@
 const express = require("express");
-const { signup, login, googleLogin, getMe, updateProfile, changePassword, updatePreferences, updateNotifications, connectGithub, githubLogin, githubCallback } = require("../controllers/authController");
+const { signup, login, googleLogin, getMe, updateProfile, changePassword, updatePreferences, updateNotifications, connectGithub, githubLogin, githubCallback, githubConnectStart } = require("../controllers/authController");
 const requireAuth = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -13,6 +13,7 @@ router.put("/password", requireAuth, changePassword);
 router.put("/preferences", requireAuth, updatePreferences);
 router.put("/notifications", requireAuth, updateNotifications);
 router.post("/github/connect", requireAuth, connectGithub);
+router.get("/github/connect/start", requireAuth, githubConnectStart);
 router.get("/github", githubLogin);
 router.get("/github/callback", githubCallback);
 

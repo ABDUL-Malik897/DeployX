@@ -445,6 +445,46 @@ const githubLogin = (req, res) => {
     res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
 };
 
+const githubConnectStart = (req, res) => {
+    try {
+        const userId = String(req.user._id);
+        const timestamp = Date.now();
+        const payload = `${userId}.${timestamp}`;
+
+        const signature = crypto
+            .createHmac("sha256", process.env.SECRET)
+            .update(payload)
+            .digest("hex");
+
+        const state = Buffer
+            .from(`${payload}.${signature}`)
+            .toString("base64url");
+
+        res.setHeader(
+            "Set-Cookie",
+            `github_oauth_state=${state}; HttpOnly; Path=/; SameSite=Lax; Max-Age=600`
+        );
+
+        const params = new URLSearchParams({
+            client_id: process.env.GITHUB_CLIENT_ID,
+            redirect_uri: process.env.GITHUB_CALLBACK_URL,
+            scope: "read:user user:email",
+            state
+        });
+
+        return res.status(200).json({
+            url: `https://github.com/login/oauth/authorize?${params.toString()}`
+        });
+
+    } catch (error) {
+        console.error("GitHub connect start error:", error);
+
+        return res.status(500).json({
+            message: "Unable to start GitHub connection"
+        });
+    }
+};
+
 const githubCallback = async (req, res) => {
     try {
         const { code, state } = req.query;
@@ -464,6 +504,36 @@ const githubCallback = async (req, res) => {
         const savedState = stateCookie?.split("=")[1];
         if (!savedState || savedState !== state) {
             return res.redirect(`${process.env.FRONTEND_URL}/login?error=github_state_invalid`);
+        }
+
+        let connectUserId = null;
+        try {
+            const decodedState = Buffer
+                .from(state, "base64url")
+                .toString("utf8");
+            const parts = decodedState.split(".");
+            if (parts.length === 3) {
+                const userId = parts[0];
+                const timestamp = parts[1];
+                const signature = parts[2];
+                const payload = `${userId}.${timestamp}`;
+                const expectedSignature = crypto
+                    .createHmac("sha256", process.env.SECRET)
+                    .update(payload)
+                    .digest("hex");
+                const validSignature =
+                    signature.length === expectedSignature.length &&
+                    crypto.timingSafeEqual(
+                        Buffer.from(signature),
+                        Buffer.from(expectedSignature)
+                    );
+                const validTimestamp = Date.now() - Number(timestamp) < 10 * 60 * 1000;
+                if (validSignature && validTimestamp) {
+                    connectUserId = userId;
+                }
+            }
+        } catch (error) {
+            console.error("GitHub connect state decode error:", error);
         }
 
         const tokenResponse = await fetch("https://github.com/login/oauth/access_token",  {
@@ -498,6 +568,35 @@ const githubCallback = async (req, res) => {
         const githubUser = await githubUserResponse.json();
         if (!githubUser.id) {
             return res.redirect(`${process.env.FRONTEND_URL}/login?error=github_user_failed`);
+        }
+        if (connectUserId) {
+            try {
+                const installationResponse = await githubApp.octokit.request(
+                        "GET /users/{username}/installation",
+                        {
+                            username: githubUser.login
+                        }
+                    );
+                const installation = installationResponse.data;
+                const user = await User.findById(connectUserId);
+                if (!user) {
+                    return res.redirect(`${process.env.FRONTEND_URL}/github?github_error=user_not_found`);
+                }
+                user.githubId = String(githubUser.id);
+                user.githubUsername = githubUser.login;
+                user.githubInstallationId = String(installation.id);
+                user.githubAccessToken = githubAccessToken;
+                await user.save();
+                res.setHeader(
+                    "Set-Cookie",
+                    "github_oauth_state=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0"
+                );
+                return res.redirect(`${process.env.FRONTEND_URL}/github?github_connected=true`);
+            } catch (error) {
+                console.error("GitHub installation lookup error:", error.response?.data || error);
+
+                return res.redirect(`${process.env.FRONTEND_URL}/github?github_error=app_not_installed`);
+            }
         }
 
         const emailResponse = await fetch("https://api.github.com/user/emails", {
@@ -566,5 +665,6 @@ module.exports = {
     updateNotifications,
     connectGithub,
     githubLogin,
-    githubCallback
+    githubCallback,
+    githubConnectStart
 };
