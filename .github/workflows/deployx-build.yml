@@ -29,7 +29,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.DEPLOYX_APP_CLIENT_ID }}
+          client-id: ${{ secrets.DEPLOYX_APP_CLIENT_ID }}
           private-key: ${{ secrets.DEPLOYX_APP_PRIVATE_KEY }}
           owner: ${{ inputs.owner }}
           repositories: ${{ inputs.repo }}
