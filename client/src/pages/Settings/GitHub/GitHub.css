@@ -97,7 +97,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
-    max-height: 800px;
+    max-height: 700px;
     overflow-y: auto;
 }
 
