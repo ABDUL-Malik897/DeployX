@@ -502,11 +502,62 @@ const githubCallback = async (req, res) => {
                 cookie.startsWith("github_oauth_state=")
             );
         const savedState = stateCookie?.split("=")[1];
-        if (!savedState || savedState !== state) {
-            return res.redirect(`${process.env.FRONTEND_URL}/login?error=github_state_invalid`);
-        }
 
         let connectUserId = null;
+        let isConnectFlow = false;
+
+        // Detect our special "Connect GitHub" state.
+        // The state is signed, so we can safely recover the DeployX user ID.
+        try {
+            const decodedState = Buffer
+                .from(state, "base64url")
+                .toString("utf8");
+
+            const parts = decodedState.split(".");
+
+            if (parts.length === 3) {
+                const userId = parts[0];
+                const timestamp = parts[1];
+                const signature = parts[2];
+
+                const payload = `${userId}.${timestamp}`;
+
+                const expectedSignature = crypto
+                    .createHmac("sha256", process.env.SECRET)
+                    .update(payload)
+                    .digest("hex");
+
+                const validSignature =
+                    signature.length === expectedSignature.length &&
+                    crypto.timingSafeEqual(
+                        Buffer.from(signature),
+                        Buffer.from(expectedSignature)
+                    );
+
+                const validTimestamp =
+                    Number.isFinite(Number(timestamp)) &&
+                    Date.now() - Number(timestamp) < 10 * 60 * 1000;
+
+                if (validSignature && validTimestamp) {
+                    connectUserId = userId;
+                    isConnectFlow = true;
+                }
+                console.log("GitHub connect flow:", {
+                    isConnectFlow,
+                    connectUserId
+                });
+            }
+        } catch (error) {
+            console.error("GitHub connect state decode error:", error);
+        }
+
+        // If this was a Connect GitHub flow, the signed state
+        // is enough. We don't require the OAuth cookie.
+        if (!isConnectFlow && (!savedState || savedState !== state)) {
+            return res.redirect(
+                `${process.env.FRONTEND_URL}/login?error=github_state_invalid`
+            );
+        }
         try {
             const decodedState = Buffer
                 .from(state, "base64url")
@@ -594,7 +645,6 @@ const githubCallback = async (req, res) => {
                 return res.redirect(`${process.env.FRONTEND_URL}/github?github_connected=true`);
             } catch (error) {
                 console.error("GitHub installation lookup error:", error.response?.data || error);
-
                 return res.redirect(`${process.env.FRONTEND_URL}/github?github_error=app_not_installed`);
             }
         }
