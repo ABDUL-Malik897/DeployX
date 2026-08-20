@@ -97,7 +97,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
-    max-height: 550px;
+    max-height: 520px;
     overflow-y: auto;
     scrollbar-color: var(--surface) transparent;
 }
