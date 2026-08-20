@@ -146,7 +146,8 @@ jobs:
           "$RUNNER_TEMP/report-deployx.sh" \
             "building" \
             "Repository Ready" \
-            "Repository ${{ inputs.owner }}/${{ inputs.repo }} checked out successfully.\nBranch: ${{ inputs.branch }}"
+            "Repository ${{ inputs.owner }}/${{ inputs.repo }} checked out successfully.
+            \nBranch: ${{ inputs.branch }}"
 
       # ========================================
       # 5. Setup Node
@@ -269,7 +270,8 @@ jobs:
           "$RUNNER_TEMP/report-deployx.sh" \
             "building" \
             "Build Complete" \
-            "Application built successfully.\nOutput directory: ${{ inputs.output_directory }}"
+            "Application built successfully.
+            \nOutput directory: ${{ inputs.output_directory }}"
 
       # ========================================
       # 13. Install Vercel CLI
@@ -365,7 +367,8 @@ jobs:
           "$RUNNER_TEMP/report-deployx.sh" \
             "success" \
             "Deployment Complete" \
-            "GitHub Actions build and Vercel deployment completed successfully.\nDeployment URL: ${{ steps.vercel-deploy.outputs.deployment_url }}" \
+            "GitHub Actions build and Vercel deployment completed successfully.
+            \nDeployment URL: ${{ steps.vercel-deploy.outputs.deployment_url }}" \
             "${{ steps.vercel-deploy.outputs.deployment_url }}"
 
       # ========================================
