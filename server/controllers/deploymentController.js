@@ -4,37 +4,21 @@ const { triggerBuildWorkflow } = require("../utils/githubActions");
 
 const createDeployment = async (req, res) => {
     try {
-        const {
-            branch = "main",
-            rootDirectory = ""
-        } = req.body || {};
 
+        const { branch = "main", rootDirectory = "" } = req.body || {};
         const project = await Project.findOne({
             _id: req.params.projectId,
             owner: req.user._id
         });
-
         if (!project) {
             return res.status(404).json({
                 message: "Project not found"
             });
         }
-
-        // Update the selected root directory.
-        project.rootDirectory =
-            typeof rootDirectory === "string"
-                ? rootDirectory.trim()
-                : "";
-
+        project.rootDirectory = typeof rootDirectory === "string" ? rootDirectory.trim() : "";
         await project.save();
-
-        // Get the current user's GitHub installation.
         const User = require("../models/User");
-
-        const user = await User.findById(
-            req.user._id
-        );
-
+        const user = await User.findById(req.user._id);
         if (!user) {
             return res.status(404).json({
                 message: "User not found"
@@ -47,16 +31,11 @@ const createDeployment = async (req, res) => {
             });
         }
 
-        // ----------------------------------------
-        // Determine repository owner + name
-        // ----------------------------------------
-
         let owner;
         let repo;
 
         if (project.githubFullName) {
-            const parts =
-                project.githubFullName.split("/");
+            const parts = project.githubFullName.split("/");
 
             if (parts.length === 2) {
                 owner = parts[0];
@@ -65,113 +44,60 @@ const createDeployment = async (req, res) => {
         }
 
         if (!owner || !repo) {
-            const repositoryUrl =
-                project.repository || "";
-
-            const match =
-                repositoryUrl.match(
-                    /github\.com\/([^/]+)\/([^/#]+?)(?:\.git)?$/
-                );
-
+            const repositoryUrl = project.repository || "";
+            const match = repositoryUrl.match(/github\.com\/([^/]+)\/([^/#]+?)(?:\.git)?$/);
             if (match) {
                 owner = match[1];
                 repo = match[2];
             }
         }
-
         if (!owner || !repo) {
             return res.status(400).json({
-                message:
-                    "Unable to determine GitHub repository."
+                message: "Unable to determine GitHub repository."
             });
         }
 
-        // ----------------------------------------
-        // Create DeployX deployment record
-        // ----------------------------------------
-
-        const deployment =
-            await Deployment.create({
-                project: project._id,
-                repository: project.repository,
-                branch,
-                applicationDirectory:
-                    project.rootDirectory || "",
-                status: "queued",
-                currentStep: "Queued",
-                logs:
-                    "Deployment queued...\n" +
-                    `Branch: ${branch}\n`
-            });
-
-        // ----------------------------------------
-        // Trigger GitHub Actions
-        // ----------------------------------------
+        const deployment =  await Deployment.create({
+            project: project._id,
+            repository: project.repository,
+            branch,
+            applicationDirectory: project.rootDirectory || "",
+            status: "queued",
+            currentStep: "Queued",
+            logs: "Deployment queued...\n" + `Branch: ${branch}\n`
+        });
 
         try {
             await triggerBuildWorkflow({
-                installationId:
-                    user.githubInstallationId,
-
+                installationId: user.githubInstallationId,
                 owner,
                 repo,
                 branch,
-
-                rootDirectory:
-                    project.rootDirectory || "",
-
-                deploymentId:
-                    deployment._id.toString(),
-
-                outputDirectory:
-                    project.outputDirectory || "dist",
-
-                projectSlug:
-                    project.slug
+                rootDirectory: project.rootDirectory || "",
+                deploymentId: deployment._id.toString(),
+                outputDirectory: project.outputDirectory || "dist",
+                projectSlug: project.slug
             });
-
-            deployment.currentStep =
-                "Build Queued";
-
-            deployment.logs +=
-                "GitHub Actions build queued.\n";
-
+            deployment.currentStep = "Build Queued";
+            deployment.logs += "GitHub Actions build queued.\n";
             await deployment.save();
-
         } catch (workflowError) {
-            deployment.status =
-                "failed";
-
-            deployment.currentStep =
-                "Failed";
-
-            deployment.logs +=
-                `\nUnable to start GitHub Actions:\n${workflowError.message}\n`;
-
+            deployment.status = "failed";
+            deployment.currentStep = "Failed";
+            deployment.logs += `\nUnable to start GitHub Actions:\n${workflowError.message}\n`;
             await deployment.save();
-
             throw workflowError;
         }
 
         return res.status(202).json({
-            message:
-                "Deployment queued successfully",
-
+            message: "Deployment queued successfully",
             deployment
         });
-
     } catch (error) {
-        console.error(
-            "Unable to queue deployment:",
-            error
-        );
-
+        console.error("Unable to queue deployment:", error);
         return res.status(500).json({
-            message:
-                "Unable to queue deployment",
-
-            error:
-                error.message
+            message:"Unable to queue deployment",
+            error: error.message
         });
     }
 };
@@ -242,52 +168,40 @@ const getAllDeployments = async (req, res) => {
 
 const redeployDeployment = async (req, res) => {
     try {
+
         const deployment = await Deployment.findById(
             req.params.deploymentId
         );
-
         if (!deployment) {
             return res.status(404).json({
                 message: "Deployment not found"
             });
         }
-
         const project = await Project.findOne({
             _id: deployment.project,
             owner: req.user._id
         });
-
         if (!project) {
             return res.status(403).json({
                 message: "Not authorized"
             });
         }
-
         const User = require("../models/User");
-
-        const user = await User.findById(
-            req.user._id
-        );
-
+        const user = await User.findById(req.user._id);
         if (!user) {
             return res.status(404).json({
                 message: "User not found"
             });
         }
-
         if (!user.githubInstallationId) {
             return res.status(400).json({
                 message: "GitHub is not connected"
             });
         }
-
         let owner;
         let repo;
-
         if (project.githubFullName) {
-            const parts =
-                project.githubFullName.split("/");
-
+            const parts = project.githubFullName.split("/");
             if (parts.length === 2) {
                 owner = parts[0];
                 repo = parts[1];
@@ -295,14 +209,8 @@ const redeployDeployment = async (req, res) => {
         }
 
         if (!owner || !repo) {
-            const repositoryUrl =
-                project.repository || "";
-
-            const match =
-                repositoryUrl.match(
-                    /github\.com\/([^/]+)\/([^/#]+?)(?:\.git)?$/
-                );
-
+            const repositoryUrl = project.repository || "";
+            const match = repositoryUrl.match(/github\.com\/([^/]+)\/([^/#]+?)(?:\.git)?$/);
             if (match) {
                 owner = match[1];
                 repo = match[2];
@@ -311,88 +219,53 @@ const redeployDeployment = async (req, res) => {
 
         if (!owner || !repo) {
             return res.status(400).json({
-                message:
-                    "Unable to determine GitHub repository."
+                message: "Unable to determine GitHub repository."
             });
         }
 
-        const newDeployment =
-            await Deployment.create({
-                project: project._id,
-                repository: project.repository,
-                branch: deployment.branch || "main",
-                applicationDirectory:
-                    project.rootDirectory || "",
-                status: "queued",
-                currentStep: "Queued",
-                logs:
-                    "Redeployment queued...\n" +
-                    `Branch: ${
-                        deployment.branch || "main"
-                    }\n`
-            });
+        const newDeployment = await Deployment.create({
+            project: project._id,
+            repository: project.repository,
+            branch: deployment.branch || "main",
+            applicationDirectory: project.rootDirectory || "",
+            status: "queued",
+            currentStep: "Queued",
+            logs: "Redeployment queued...\n" + `Branch: ${deployment.branch || "main"}\n`
+        });
 
         try {
             await triggerBuildWorkflow({
-                installationId:
-                    user.githubInstallationId,
-
+                installationId: user.githubInstallationId,
                 owner,
                 repo,
-
-                branch:
-                    deployment.branch || "main",
-
-                rootDirectory:
-                    project.rootDirectory || "",
-
-                deploymentId:
-                    newDeployment._id.toString(),
-
-                outputDirectory:
-                    project.outputDirectory || "dist",
-
-                projectSlug:
-                    project.slug
+                branch: deployment.branch || "main",
+                rootDirectory: project.rootDirectory || "",
+                deploymentId: newDeployment._id.toString(),
+                outputDirectory: project.outputDirectory || "dist",
+                projectSlug: project.slug
             });
 
-            newDeployment.currentStep =
-                "Build Queued";
-
-            newDeployment.logs +=
-                "GitHub Actions build queued.\n";
-
+            newDeployment.currentStep = "Build Queued";
+            newDeployment.logs += "GitHub Actions build queued.\n";
             await newDeployment.save();
 
         } catch (workflowError) {
             newDeployment.status = "failed";
             newDeployment.currentStep = "Failed";
-
-            newDeployment.logs +=
-                `\nUnable to start GitHub Actions:\n${workflowError.message}\n`;
-
+            newDeployment.logs += `\nUnable to start GitHub Actions:\n${workflowError.message}\n`;
             await newDeployment.save();
-
             throw workflowError;
         }
 
         return res.status(202).json({
-            message:
-                "Redeployment queued successfully",
+            message: "Redeployment queued successfully",
             deployment: newDeployment
         });
-
     } catch (error) {
-        console.error(
-            "Redeployment failed:",
-            error
-        );
-
+        console.error("Redeployment failed:", error);
         return res.status(500).json({
-            message:
-                "Redeployment failed",
-            error:
-                error.message
+            message: "Redeployment failed",
+            error: error.message
         });
     }
 };

@@ -12,7 +12,6 @@ const GithubCallback = () => {
         const hash = window.location.hash;
         const params = new URLSearchParams(hash.substring(1));
         const token = params.get("token");
-        console.log("GitHub token received:", !!token);
         if (!token) {
             console.error("No GitHub token found");
             navigate("/login");
@@ -22,7 +21,6 @@ const GithubCallback = () => {
         const getUser = async () => {
             try {
                 const response = await API.get("/auth/me");
-                console.log("GitHub user:", response.data);
                 localStorage.setItem("user", JSON.stringify(response.data.user));
                 dispatch({
                     type: "LOGIN",

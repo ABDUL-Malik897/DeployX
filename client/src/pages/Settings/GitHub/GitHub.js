@@ -53,14 +53,11 @@ const GitHub = () => {
     }, [currentUser,fetchRepositories]);
 
     const connectInstallation = useCallback(async (installationId) => {
-        console.log("connectInstallation STARTED:", installationId);
         try {
             setConnecting(true);
             setError("");
             setSuccess("");
-            console.log("About to call /auth/github/connect");
             const response = await API.post("/auth/github/connect", {installationId});
-            console.log("GitHub connect response:", response.data);
             setConnected(true);
             fetchRepositories();
             setSuccess(response.data.message || "GitHub connected successfully.");
@@ -86,17 +83,10 @@ const GitHub = () => {
     useEffect(() => {
         const installationId = searchParams.get("installation_id");
         const setupAction = searchParams.get("setup_action");
-        console.log("GitHub installation effect:", {
-            installationId,
-            setupAction,
-            alreadyHandled: installationHandled.current
-        });
         if (!installationId || !["install", "update"].includes(setupAction) || installationHandled.current) {
-            console.log("GitHub installation effect stopped");
             return;
         }
         installationHandled.current = true;
-        console.log("Calling connectInstallation:", installationId);
         setSearchParams({}, { replace: true });
         connectInstallation(installationId);
     }, [connectInstallation, searchParams, setSearchParams]);
@@ -176,7 +166,6 @@ const GitHub = () => {
             setDeployingBranch(branch);
             setDeploymentError("");
             setSuccess("");
-            console.log("Deploy clicked:", selectedRepository.fullName, branch, rootDirectory);
             const response = await API.get("/projects");
             const projects = response.data;
             const githubFullName = selectedRepository.fullName?.trim().toLowerCase();
@@ -186,10 +175,7 @@ const GitHub = () => {
                 const projectUrl = project.repository?.trim().toLowerCase().replace(/\/$/, "");
                 return (projectFullName === githubFullName || projectUrl === githubUrl);
             });
-            console.log("Existing DeployX project:", project);
             if (!project) {
-            console.log("No DeployX project found.");
-            console.log("Creating project for:", selectedRepository.fullName);
             const repositoryUrl = selectedRepository.htmlUrl;
             const createResponse = await API.post("/projects",
                 {
@@ -199,7 +185,6 @@ const GitHub = () => {
                 }
             );
                 project = createResponse.data;
-                console.log("DeployX project created:", project);
             }
             else {
                 const updateResponse = await API.put(`/projects/${project._id}`,
@@ -214,13 +199,12 @@ const GitHub = () => {
                 );
                 project = updateResponse.data.project || updateResponse.data;
             }
-            const deploymentResponse = await API.post(`/deployments/${project._id}`,
+            await API.post(`/deployments/${project._id}`,
                 {
                     branch,
                     rootDirectory
                 }
             );
-            console.log("Deployment response:", deploymentResponse.data);
             setSuccess(`Deployment of ${branch} started successfully.`);
             setInspection(null);
             setSelectedBranch("");

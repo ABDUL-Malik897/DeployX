@@ -15,11 +15,9 @@ const runCommand = (command, args, cwd, customEnv = {}, onLog) => {
 
         const handleOutput = (data, isError = false) => {
             const output = data.toString();
-
             if (onLog) {
                 onLog(output);
             }
-
             if (isError) {
                 console.error(output);
             } else {
@@ -44,15 +42,10 @@ const runCommand = (command, args, cwd, customEnv = {}, onLog) => {
             if (failed) {
                 return;
             }
-
             if (code === 0) {
                 resolve();
             } else {
-                reject(
-                    new Error(
-                        `Command failed with exit code ${code}`
-                    )
-                );
+                reject(new Error(`Command failed with exit code ${code}`));
             }
         });
     });
