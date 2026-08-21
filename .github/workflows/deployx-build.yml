@@ -47,15 +47,16 @@ jobs:
     env:
       DEPLOYX_API_URL: ${{ secrets.DEPLOYX_API_URL }}
       DEPLOYX_DEPLOYMENT_SECRET: ${{ secrets.DEPLOYX_DEPLOYMENT_SECRET }}
+
       DEPLOYMENT_ID: ${{ inputs.deployment_id }}
-      OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
       PROJECT_SLUG: ${{ inputs.project_slug }}
+      INPUT_OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
 
     steps:
 
-      # ========================================
+      # ==================================================
       # 1. Create GitHub App token
-      # ========================================
+      # ==================================================
 
       - name: Create GitHub App token
         id: app-token
@@ -66,9 +67,9 @@ jobs:
           owner: ${{ inputs.owner }}
           repositories: ${{ inputs.repo }}
 
-      # ========================================
+      # ==================================================
       # 2. Create DeployX progress reporter
-      # ========================================
+      # ==================================================
 
       - name: Create DeployX progress reporter
         shell: bash
@@ -100,15 +101,22 @@ jobs:
           if os.environ.get("DEPLOYMENT_URL"):
               payload["url"] = os.environ["DEPLOYMENT_URL"]
 
-          if os.environ.get("OUTPUT_DIRECTORY"):
-              payload["outputDirectory"] = os.environ["OUTPUT_DIRECTORY"]
+          output_directory = os.environ.get("OUTPUT_DIRECTORY")
+
+          if output_directory:
+              payload["outputDirectory"] = output_directory
 
           print(json.dumps(payload))
           PY
 
           echo ""
-          echo "DeployX progress:"
+          echo "========================================"
+          echo "DeployX Progress"
+          echo "Step: $CURRENT_STEP"
+          echo "Status: $STATUS"
           echo "$MESSAGE"
+          echo "========================================"
+          echo ""
 
           curl \
             --silent \
@@ -118,16 +126,15 @@ jobs:
             --header "Content-Type: application/json" \
             --header "X-DeployX-Secret: $DEPLOYX_DEPLOYMENT_SECRET" \
             --data-binary "@$RUNNER_TEMP/deployx-payload.json" \
-            "${DEPLOYX_API_URL}/api/webhooks/deployment" \
-            || echo "WARNING: DeployX progress update failed."
+            "${DEPLOYX_API_URL}/api/webhooks/deployment"
 
           SCRIPT
 
           chmod +x "$RUNNER_TEMP/report-deployx.sh"
 
-      # ========================================
+      # ==================================================
       # 3. Checkout target repository
-      # ========================================
+      # ==================================================
 
       - name: Checkout target repository
         uses: actions/checkout@v4
@@ -136,62 +143,182 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ steps.app-token.outputs.token }}
 
-      # ========================================
-      # 4. Report checkout complete
-      # ========================================
+      # ==================================================
+      # 4. Detect project type
+      # ==================================================
 
-      - name: Report checkout complete
+      - name: Detect project type
+        id: detect
+        continue-on-error: true
+        working-directory: ${{ inputs.root_directory }}
         shell: bash
         run: |
+          echo "Inspecting project..."
+
+          echo ""
+          echo "Repository:"
+          echo "${{ inputs.owner }}/${{ inputs.repo }}"
+
+          echo ""
+          echo "Branch:"
+          echo "${{ inputs.branch }}"
+
+          echo ""
+          echo "Root directory:"
+          echo "'${{ inputs.root_directory }}'"
+
+          echo ""
+          echo "Files:"
+          ls -la
+
+          # ------------------------------------------
+          # Node project
+          # ------------------------------------------
+
+          if [ -f "package.json" ]; then
+
+            echo ""
+            echo "Project type: Node"
+
+            echo "project_type=node" >> "$GITHUB_OUTPUT"
+
+            echo "output_directory=${{ inputs.output_directory }}" \
+              >> "$GITHUB_OUTPUT"
+
+            echo "framework=Node" >> "$GITHUB_OUTPUT"
+
+            exit 0
+          fi
+
+          # ------------------------------------------
+          # Static project
+          # ------------------------------------------
+
+          if [ -f "index.html" ]; then
+
+            echo ""
+            echo "Project type: Static HTML/CSS/JS"
+
+            echo "project_type=static" >> "$GITHUB_OUTPUT"
+
+            echo "output_directory=." \
+              >> "$GITHUB_OUTPUT"
+
+            echo "framework=Static HTML" >> "$GITHUB_OUTPUT"
+
+            exit 0
+          fi
+
+          # ------------------------------------------
+          # Unsupported project
+          # ------------------------------------------
+
+          echo ""
+          echo "ERROR: Unable to detect project type."
+
+          echo ""
+          echo "Expected one of:"
+          echo "- package.json"
+          echo "- index.html"
+
+          echo ""
+          echo "No supported application was found."
+
+          exit 1
+
+      # ==================================================
+      # 5. Report detection failure
+      # ==================================================
+
+      - name: Report project detection failure
+        if: steps.detect.outcome == 'failure'
+        shell: bash
+        run: |
+          MESSAGE=$(cat <<'EOF'
+          DeployX could not detect a supported project.
+
+          Expected:
+          - package.json for a Node/React/Vite/etc. project
+          - index.html for a static HTML/CSS/JS project
+
+          The selected repository does not contain either file
+          in the selected root directory.
+          EOF
+          )
+
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "failed" \
+            "Project Detection Failed" \
+            "$MESSAGE"
+
+          exit 1
+
+      # ==================================================
+      # 6. Store detected values
+      # ==================================================
+
+      - name: Set deployment variables
+        shell: bash
+        run: |
+          PROJECT_TYPE="${{ steps.detect.outputs.project_type }}"
+          DETECTED_OUTPUT="${{ steps.detect.outputs.output_directory }}"
+
+          echo "PROJECT_TYPE=$PROJECT_TYPE" >> "$GITHUB_ENV"
+          echo "OUTPUT_DIRECTORY=$DETECTED_OUTPUT" >> "$GITHUB_ENV"
+
+          echo ""
+          echo "Detected project type: $PROJECT_TYPE"
+          echo "Detected output directory: $DETECTED_OUTPUT"
+
+      # ==================================================
+      # 7. Report project detected
+      # ==================================================
+
+      - name: Report project detected
+        shell: bash
+        run: |
+          if [ "$PROJECT_TYPE" = "static" ]; then
+            MESSAGE=$(
+              cat <<'EOF'
+          Static HTML/CSS/JS project detected.
+
+          No package installation or build command is required.
+
+          DeployX will publish the repository files directly.
+          EOF
+            )
+          else
+            MESSAGE=$(
+              cat <<'EOF'
+          Node-based project detected.
+
+          DeployX will install dependencies and run
+          the project's npm build script.
+          EOF
+            )
+          fi
+
           "$RUNNER_TEMP/report-deployx.sh" \
             "building" \
-            "Repository Ready" \
-            "Repository ${{ inputs.owner }}/${{ inputs.repo }} checked out successfully.
-            \nBranch: ${{ inputs.branch }}"
+            "Project Detected" \
+            "$MESSAGE"
 
-      # ========================================
-      # 5. Setup Node
-      # ========================================
+      # ==================================================
+      # 8. Setup Node
+      # ==================================================
 
       - name: Setup Node
+        if: env.PROJECT_TYPE == 'node'
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # ========================================
-      # 6. Show deployment information
-      # ========================================
-
-      - name: Show deployment information
-        run: |
-          echo "========================================"
-          echo "DeployX Deployment"
-          echo "========================================"
-          echo "Repository: ${{ inputs.owner }}/${{ inputs.repo }}"
-          echo "Branch: ${{ inputs.branch }}"
-          echo "Root directory: '${{ inputs.root_directory }}'"
-          echo "Deployment ID: ${{ inputs.deployment_id }}"
-          echo "Output directory: ${{ inputs.output_directory }}"
-          echo "Project slug: ${{ inputs.project_slug }}"
-          echo "========================================"
-          echo ""
-          echo "Node:"
-          node --version
-          echo ""
-          echo "NPM:"
-          npm --version
-          echo ""
-          echo "Current directory:"
-          pwd
-          echo ""
-          echo "Repository contents:"
-          ls -la
-
-      # ========================================
-      # 7. Installing dependencies - START
-      # ========================================
+      # ==================================================
+      # 9. Report dependency installation started
+      # ==================================================
 
       - name: Report dependency installation started
+        if: env.PROJECT_TYPE == 'node'
         shell: bash
         run: |
           "$RUNNER_TEMP/report-deployx.sh" \
@@ -199,187 +326,484 @@ jobs:
             "Installing Dependencies" \
             "Installing project dependencies..."
 
-      # ========================================
-      # 8. Install dependencies
-      # ========================================
+      # ==================================================
+      # 10. Install dependencies
+      # ==================================================
 
       - name: Install dependencies
+        id: install
+        if: env.PROJECT_TYPE == 'node'
+        continue-on-error: true
         working-directory: ${{ inputs.root_directory }}
         shell: bash
         run: |
-          echo "Installing dependencies..."
+          set -o pipefail
+
+          LOG_FILE="$RUNNER_TEMP/install.log"
 
           if [ -f package-lock.json ]; then
             echo "package-lock.json found."
             echo "Running npm ci..."
-            npm ci --no-audit --no-fund
+
+            npm ci --no-audit --no-fund 2>&1 | tee "$LOG_FILE"
+
           else
             echo "No package-lock.json found."
             echo "Running npm install..."
-            npm install --no-audit --no-fund
+
+            npm install --no-audit --no-fund 2>&1 | tee "$LOG_FILE"
           fi
 
-      # ========================================
-      # 9. Installing dependencies - COMPLETE
-      # ========================================
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          exit "$EXIT_CODE"
+
+      # ==================================================
+      # 11. Report dependency failure
+      # ==================================================
+
+      - name: Report dependency installation failure
+        if: steps.install.outcome == 'failure'
+        shell: bash
+        run: |
+          ERROR_LOG=$(tail -n 40 "$RUNNER_TEMP/install.log")
+
+          MESSAGE=$(
+            cat <<EOF
+          Dependency installation failed.
+
+          Command:
+          npm install / npm ci
+
+          Actual error:
+          $ERROR_LOG
+          EOF
+          )
+
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "failed" \
+            "Installing Dependencies Failed" \
+            "$MESSAGE"
+
+          exit 1
+
+      # ==================================================
+      # 12. Report dependency installation complete
+      # ==================================================
 
       - name: Report dependency installation complete
+        if: env.PROJECT_TYPE == 'node'
         shell: bash
         run: |
           "$RUNNER_TEMP/report-deployx.sh" \
             "building" \
             "Dependencies Installed" \
-            "Project dependencies installed successfully."
+            "Project dependencies were installed successfully."
 
-      # ========================================
-      # 10. Build - START
-      # ========================================
+      # ==================================================
+      # 13. Report build started
+      # ==================================================
 
       - name: Report build started
+        if: env.PROJECT_TYPE == 'node'
         shell: bash
         run: |
           "$RUNNER_TEMP/report-deployx.sh" \
             "building" \
             "Building Project" \
-            "Starting application build with npm run build..."
+            "Running the project's npm build script..."
 
-      # ========================================
-      # 11. Build project
-      # ========================================
+      # ==================================================
+      # 14. Build project
+      # ==================================================
 
       - name: Build project
+        id: build
+        if: env.PROJECT_TYPE == 'node'
+        continue-on-error: true
         working-directory: ${{ inputs.root_directory }}
         shell: bash
         run: |
-          echo "Running application build..."
-          npm run build
+          set -o pipefail
 
-          echo ""
-          echo "Build completed."
-          echo ""
-          echo "Build output:"
-          ls -la "${{ inputs.output_directory }}"
+          LOG_FILE="$RUNNER_TEMP/build.log"
 
-      # ========================================
-      # 12. Build - COMPLETE
-      # ========================================
+          npm run build 2>&1 | tee "$LOG_FILE"
 
-      - name: Report build complete
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          exit "$EXIT_CODE"
+
+      # ==================================================
+      # 15. Report build failure
+      # ==================================================
+
+      - name: Report build failure
+        if: steps.build.outcome == 'failure'
         shell: bash
         run: |
+          ERROR_LOG=$(tail -n 60 "$RUNNER_TEMP/build.log")
+
+          MESSAGE=$(
+            cat <<EOF
+          Application build failed.
+
+          Command:
+          npm run build
+
+          Actual build error:
+          $ERROR_LOG
+          EOF
+          )
+
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "failed" \
+            "Build Failed" \
+            "$MESSAGE"
+
+          exit 1
+
+      # ==================================================
+      # 16. Report build complete
+      # ==================================================
+
+      - name: Report build complete
+        if: env.PROJECT_TYPE == 'node'
+        working-directory: ${{ inputs.root_directory }}
+        shell: bash
+        run: |
+          echo "Build completed successfully."
+
+          echo ""
+          echo "Build output:"
+          ls -la "$OUTPUT_DIRECTORY"
+
+          MESSAGE=$(
+            cat <<EOF
+          Application build completed successfully.
+
+          Output directory:
+          $OUTPUT_DIRECTORY
+          EOF
+          )
+
           "$RUNNER_TEMP/report-deployx.sh" \
             "building" \
             "Build Complete" \
-            "Application built successfully.
-            \nOutput directory: ${{ inputs.output_directory }}"
+            "$MESSAGE"
 
-      # ========================================
-      # 13. Install Vercel CLI
-      # ========================================
+      # ==================================================
+      # 17. Report static project ready
+      # ==================================================
 
-      - name: Install Vercel CLI
+      - name: Report static project ready
+        if: env.PROJECT_TYPE == 'static'
+        shell: bash
         run: |
-          echo "Installing Vercel CLI..."
-          npm install --global vercel@latest
+          MESSAGE=$(
+            cat <<'EOF'
+          Static project is ready for deployment.
 
-          echo ""
-          echo "Vercel version:"
-          vercel --version
+          No build command was required.
+          The repository files will be published directly.
+          EOF
+          )
 
-      # ========================================
-      # 14. Report Vercel preparation
-      # ========================================
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "building" \
+            "Static Project Ready" \
+            "$MESSAGE"
+
+      # ==================================================
+      # 18. Install Vercel CLI
+      # ==================================================
 
       - name: Report Vercel preparation
         shell: bash
         run: |
           "$RUNNER_TEMP/report-deployx.sh" \
             "building" \
-            "Preparing Deployment" \
-            "Vercel CLI is ready. Preparing production deployment..."
+            "Preparing Vercel Deployment" \
+            "Installing Vercel CLI and preparing the hosting environment..."
 
-      # ========================================
-      # 15. Deploy to Vercel
-      # ========================================
+      - name: Install Vercel CLI
+        id: vercel-cli
+        continue-on-error: true
+        shell: bash
+        run: |
+          LOG_FILE="$RUNNER_TEMP/vercel-cli.log"
+
+          npm install --global vercel@latest 2>&1 | tee "$LOG_FILE"
+
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo ""
+            echo "Vercel version:"
+            vercel --version
+          fi
+
+          exit "$EXIT_CODE"
+
+      # ==================================================
+      # 19. Report Vercel CLI failure
+      # ==================================================
+
+      - name: Report Vercel CLI failure
+        if: steps.vercel-cli.outcome == 'failure'
+        shell: bash
+        run: |
+          ERROR_LOG=$(tail -n 40 "$RUNNER_TEMP/vercel-cli.log")
+
+          MESSAGE=$(
+            cat <<EOF
+          Vercel CLI installation failed.
+
+          Actual error:
+          $ERROR_LOG
+          EOF
+          )
+
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "failed" \
+            "Vercel Preparation Failed" \
+            "$MESSAGE"
+
+          exit 1
+
+      # ==================================================
+      # 20. Prepare deployment files
+      # ==================================================
+
+      - name: Prepare deployment files
+        id: prepare
+        continue-on-error: true
+        working-directory: ${{ inputs.root_directory }}
+        shell: bash
+        run: |
+          LOG_FILE="$RUNNER_TEMP/prepare.log"
+
+          {
+            echo "Preparing files for Vercel..."
+
+            DEPLOY_DIR="$RUNNER_TEMP/deployx-vercel-upload"
+
+            rm -rf "$DEPLOY_DIR"
+            mkdir -p "$DEPLOY_DIR"
+
+            if [ "$PROJECT_TYPE" = "static" ]; then
+
+              echo "Static project detected."
+              echo "Copying repository files..."
+
+              rsync -a \
+                --exclude=".git" \
+                --exclude=".github" \
+                ./ "$DEPLOY_DIR/"
+
+            else
+
+              echo "Node project detected."
+              echo "Using build output directory:"
+              echo "$OUTPUT_DIRECTORY"
+
+              if [ ! -d "$OUTPUT_DIRECTORY" ]; then
+                echo "ERROR: Build output directory '$OUTPUT_DIRECTORY' does not exist."
+                exit 1
+              fi
+
+              cp -R \
+                "$OUTPUT_DIRECTORY"/. \
+                "$DEPLOY_DIR/"
+
+            fi
+
+            echo ""
+            echo "Prepared files:"
+            ls -la "$DEPLOY_DIR"
+
+          } 2>&1 | tee "$LOG_FILE"
+
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          exit "$EXIT_CODE"
+
+      # ==================================================
+      # 21. Report preparation failure
+      # ==================================================
+
+      - name: Report deployment preparation failure
+        if: steps.prepare.outcome == 'failure'
+        shell: bash
+        run: |
+          ERROR_LOG=$(tail -n 50 "$RUNNER_TEMP/prepare.log")
+
+          MESSAGE=$(
+            cat <<EOF
+          Preparing deployment files failed.
+
+          Actual error:
+          $ERROR_LOG
+          EOF
+          )
+
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "failed" \
+            "Preparing Deployment Failed" \
+            "$MESSAGE"
+
+          exit 1
+
+      # ==================================================
+      # 22. Report Vercel upload started
+      # ==================================================
+
+      - name: Report Vercel upload started
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "building" \
+            "Deploying to Vercel" \
+            "Uploading the prepared application to Vercel..."
+
+      # ==================================================
+      # 23. Deploy to Vercel
+      # ==================================================
 
       - name: Deploy to Vercel
         id: vercel-deploy
-        working-directory: ${{ inputs.root_directory }}
+        continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
-          set -e
+          LOG_FILE="$RUNNER_TEMP/vercel-deploy.log"
 
-          OUTPUT_DIR="${{ inputs.output_directory }}"
+          {
+            DEPLOY_DIR="$RUNNER_TEMP/deployx-vercel-upload"
 
-          if [ ! -d "$OUTPUT_DIR" ]; then
-            echo "Build output directory '$OUTPUT_DIR' does not exist."
-            exit 1
-          fi
+            cd "$DEPLOY_DIR"
 
-          echo "Deploying '$OUTPUT_DIR' to Vercel..."
+            echo "Deploy directory:"
+            pwd
 
-          mkdir -p ../deployx-vercel-upload
+            echo ""
+            echo "Deployment files:"
+            ls -la
 
-          rm -rf ../deployx-vercel-upload/*
+            echo ""
+            echo "Starting Vercel deployment..."
 
-          cp -R "$OUTPUT_DIR"/. ../deployx-vercel-upload/
+            url=$(
+              vercel deploy \
+                --prod \
+                --yes \
+                --token="$VERCEL_TOKEN"
+            )
 
-          cd ../deployx-vercel-upload
+            url="$(echo "$url" | tail -n 1 | tr -d '\r')"
 
-          echo "Files being deployed:"
-          ls -la
+            if [ -z "$url" ]; then
+              echo "ERROR: Vercel did not return a deployment URL."
+              exit 1
+            fi
 
-          echo ""
-          echo "Starting Vercel deployment..."
+            echo ""
+            echo "Vercel deployment URL:"
+            echo "$url"
 
-          url=$(
-            vercel deploy \
-              --prod \
-              --yes \
-              --token="$VERCEL_TOKEN"
+            echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
+
+          } 2>&1 | tee "$LOG_FILE"
+
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          exit "$EXIT_CODE"
+
+      # ==================================================
+      # 24. Report Vercel deployment failure
+      # ==================================================
+
+      - name: Report Vercel deployment failure
+        if: steps.vercel-deploy.outcome == 'failure'
+        shell: bash
+        run: |
+          ERROR_LOG=$(tail -n 60 "$RUNNER_TEMP/vercel-deploy.log")
+
+          MESSAGE=$(
+            cat <<EOF
+          Vercel deployment failed.
+
+          Actual Vercel error:
+          $ERROR_LOG
+          EOF
           )
 
-          url="$(echo "$url" | tail -n 1 | tr -d '\r')"
+          "$RUNNER_TEMP/report-deployx.sh" \
+            "failed" \
+            "Vercel Deployment Failed" \
+            "$MESSAGE"
 
-          if [ -z "$url" ]; then
-            echo "Vercel did not return a deployment URL."
-            exit 1
-          fi
+          exit 1
 
-          echo ""
-          echo "========================================"
-          echo "Vercel Deployment URL:"
-          echo "$url"
-          echo "========================================"
+      # ==================================================
+      # 25. Final success callback
+      # ==================================================
 
-          echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
-
-      # ========================================
-      # 16. Report Vercel deployment complete
-      # ========================================
-
-      - name: Report Vercel deployment complete
+      - name: Report deployment success
         if: success()
         shell: bash
         run: |
+          DEPLOYMENT_URL="${{ steps.vercel-deploy.outputs.deployment_url }}"
+
+          MESSAGE=$(
+            cat <<EOF
+          Deployment completed successfully.
+
+          Project type:
+          $PROJECT_TYPE
+
+          Deployment URL:
+          $DEPLOYMENT_URL
+          EOF
+          )
+
           "$RUNNER_TEMP/report-deployx.sh" \
             "success" \
             "Deployment Complete" \
-            "GitHub Actions build and Vercel deployment completed successfully.
-            \nDeployment URL: ${{ steps.vercel-deploy.outputs.deployment_url }}" \
-            "${{ steps.vercel-deploy.outputs.deployment_url }}"
+            "$MESSAGE" \
+            "$DEPLOYMENT_URL"
 
-      # ========================================
-      # 17. Report failure
-      # ========================================
+      # ==================================================
+      # 26. Unexpected failure fallback
+      # ==================================================
 
-      - name: Report deployment failure
+      - name: Report unexpected deployment failure
         if: failure()
         shell: bash
         run: |
+          MESSAGE=$(
+            cat <<'EOF'
+          Deployment failed unexpectedly.
+
+          DeployX captured the failure before the workflow
+          could identify a specific deployment stage.
+
+          Please retry the deployment.
+          EOF
+          )
+
           "$RUNNER_TEMP/report-deployx.sh" \
             "failed" \
-            "Failed" \
-            "Deployment failed. Check the GitHub Actions logs for the failed step."
+            "Deployment Failed" \
+            "$MESSAGE"
