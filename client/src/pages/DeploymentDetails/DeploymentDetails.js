@@ -4,7 +4,6 @@ import socket from "../../socket/socket";
 import API from "../../api/api";
 import StatusBadge from "../../components/StatusBadge/StatusBadge";
 import "./DeploymentDetails.css";
-import LoadingState from "../../components/LoadingState/LoadingState";
 
 const DeploymentDetails = () => {
 
@@ -165,7 +164,7 @@ const DeploymentDetails = () => {
     if (loading) {
         return (
             <p className="deployment-message">
-                <LoadingState message="Loading deployment..."/>
+                Loading deployment...
             </p>
         );
     }
