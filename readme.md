@@ -45,7 +45,7 @@ Deploy to Vercel
   ↓
 Deployment URL
   ↓
-DeployX Backend
+DeployX Server
   ↓
 Dashboard
 ```
@@ -95,13 +95,14 @@ The root directory is useful for repositories containing more than one applicati
 For example:
 
 ```text
-my-project/
-├── frontend/
-├── backend/
+DeplyX/
+├── client/
+├── server/
+├── .github/workflows
 └── README.md
 ```
 
-The user can choose `frontend/` as the deployment root.
+The user can choose `client/` as the deployment root.
 
 ## Automated Builds
 
@@ -232,14 +233,14 @@ This makes it easier to recover from a bad deployment without starting everythin
 
 DeployX uses Socket.IO for real-time communication.
 
-The deployment page can join a deployment-specific socket room and receive updates from the backend.
+The deployment page can join a deployment-specific socket room and receive updates from the server.
 
 The intended flow is:
 
 ```text
 GitHub Actions
       ↓
-DeployX Backend
+DeployX Server
       ↓
 Socket.IO
       ↓
@@ -250,7 +251,7 @@ This allows deployment information to update without depending completely on man
 
 # Tech Stack
 
-## Frontend
+## Client
 
 - React
 - React Router
@@ -258,7 +259,7 @@ This allows deployment information to update without depending completely on man
 - Socket.IO Client
 - CSS
 
-The frontend handles:
+The client handles:
 
 - Authentication
 - Dashboard
@@ -269,7 +270,7 @@ The frontend handles:
 - Logs
 - Status updates
 
-## Backend
+## Server
 
 - Node.js
 - Express.js
@@ -280,7 +281,7 @@ The frontend handles:
 - Axios
 - dotenv
 
-The backend handles:
+The server handles:
 
 - Authentication
 - GitHub integration
@@ -298,7 +299,7 @@ The backend handles:
 - Vercel CLI
 - Vercel
 - MongoDB
-- Render/backend hosting
+- Render/server hosting
 
 # Project Structure
 
@@ -402,7 +403,7 @@ The resulting URL is captured by the workflow.
 
 ## 8. Report the Result
 
-The workflow sends the deployment result back to the DeployX backend.
+The workflow sends the deployment result back to the DeployX server.
 
 A successful deployment reports:
 
@@ -419,7 +420,7 @@ status: failed
 currentStep: Failed
 ```
 
-The backend can then update the deployment stored in MongoDB.
+The server can then update the deployment stored in MongoDB.
 
 # GitHub App
 
@@ -433,7 +434,7 @@ The workflow uses the generated token to check out the selected repository.
 
 Sensitive configuration should be stored in environment variables and deployment secrets.
 
-Typical backend variables include:
+Typical server variables include:
 
 ```env
 PORT=4000
@@ -455,7 +456,7 @@ VERCEL_TOKEN
 DEPLOYX_DEPLOYMENT_SECRET
 ```
 
-The frontend may use:
+The client may use:
 
 ```env
 REACT_APP_API_URL=https://deployx-7k6m.onrender.com
@@ -488,14 +489,14 @@ git clone <your-repository-url>
 cd DeployX
 ```
 
-Install backend dependencies:
+Install server dependencies:
 
 ```bash
 cd server
 npm install
 ```
 
-Install frontend dependencies:
+Install client dependencies:
 
 ```bash
 cd ../client
@@ -504,13 +505,13 @@ npm install
 
 Create the required `.env` files and configure the local environment.
 
-Start the backend:
+Start the server:
 
 ```bash
 npm run dev
 ```
 
-Start the frontend:
+Start the client:
 
 ```bash
 npm start
