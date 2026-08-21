@@ -688,19 +688,67 @@ jobs:
           LOG_FILE="$RUNNER_TEMP/vercel-deploy.log"
 
           {
+            set -e
+
             DEPLOY_DIR="$RUNNER_TEMP/deployx-vercel-upload"
+
+            if [ ! -d "$DEPLOY_DIR" ]; then
+              echo "ERROR: Deployment directory does not exist."
+              exit 1
+            fi
+
+            # ----------------------------------------
+            # Create a safe Vercel project name
+            # from the GitHub repository name.
+            # ----------------------------------------
+
+            PROJECT_NAME="${{ inputs.repo }}-deployX"
+
+            PROJECT_NAME=$(echo "$PROJECT_NAME" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed 's/[^a-z0-9-]/-/g' \
+              | sed 's/--*/-/g' \
+              | sed 's/^-//' \
+              | sed 's/-$//')
+
+            # Vercel project names cannot be empty.
+            if [ -z "$PROJECT_NAME" ]; then
+              PROJECT_NAME="deployx-project"
+            fi
+
+            # ----------------------------------------
+            # Keep project names within a safe length.
+            # ----------------------------------------
+
+            PROJECT_NAME="${PROJECT_NAME:0:80}"
+
+            echo "========================================"
+            echo "DeployX Vercel Project"
+            echo "========================================"
+            echo "GitHub repository: ${{ inputs.repo }}"
+            echo "Vercel project name: $PROJECT_NAME"
+            echo "========================================"
+            echo ""
 
             cd "$DEPLOY_DIR"
 
-            echo "Deploy directory:"
+            echo "Deployment directory:"
             pwd
 
             echo ""
-            echo "Deployment files:"
+            echo "Files:"
             ls -la
 
             echo ""
-            echo "Starting Vercel deployment..."
+            echo "Creating/linking Vercel project..."
+
+            vercel link \
+              --yes \
+              --project="$PROJECT_NAME" \
+              --token="$VERCEL_TOKEN"
+
+            echo ""
+            echo "Deploying production..."
 
             url=$(
               vercel deploy \
@@ -717,8 +765,11 @@ jobs:
             fi
 
             echo ""
-            echo "Vercel deployment URL:"
-            echo "$url"
+            echo "========================================"
+            echo "Vercel deployment successful"
+            echo "Project: $PROJECT_NAME"
+            echo "URL: $url"
+            echo "========================================"
 
             echo "deployment_url=$url" >> "$GITHUB_OUTPUT"
 
